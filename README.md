@@ -12,9 +12,9 @@ A Lexicon declares API endpoint inputs and outputs as types.
 
 Laplan turns the act of "defining types" itself into a language: a language of types of types (metatypes).
 
-Given types `did` and `profile`, the question "is there a path from did to profile?" becomes valid, and the solver searches for paths automatically. Types alone leave paths under-constrained; implicit preconditions like JWT tokens, expiration, and resource ownership live beyond API definitions. Declaring this tacit knowledge as morphism constraints lets the solver discover only valid paths.
+Given types `did` and `profile`, the question "is there a path from did to profile?" becomes valid, and the solver searches for paths automatically. Types alone leave paths under-constrained; implicit preconditions like JWT tokens, expiration, and resource ownership live beyond API definitions. Declaring this tacit knowledge as rule constraints lets the solver discover only valid paths.
 
-This path search is formalized as a Petri net reachability problem. The solver's design draws from Lean's tactic system: the more abstract the constraints (law, morphism), the more powerfully the solver works; the more concrete the procedure, the more the programmer specifies manually. This mirrors the relationship between `ring` / `simp` and manual `apply`.
+This path search is formalized as a Petri net reachability problem. The solver's design draws from Lean's tactic system: the more abstract the constraints (law, rule), the more powerfully the solver works; the more concrete the procedure, the more the programmer specifies manually. This mirrors the relationship between `ring` / `simp` and manual `apply`.
 
 That paths serve as reachability proofs, that constraints change reachability, and that annotations are non-recoverable from types alone have been formally verified in Lean 4 / Mathlib ([lean-lexicon](https://github.com/barineco/lean-lexicon)). Related: [lean-eigenraum](https://github.com/barineco/lean-eigenraum) (formal verification of vibrational energy transport, 136 theorems, zero sorry).
 
@@ -83,18 +83,18 @@ lexicon app.bsky.actor.getProfile version=1 {
 ### `.lex` (Laplan KDL: computational language)
 
 ```kdl
-app.bsky.actor.getProfile xrpc=query {
-    in { (str)actor format=at-identifier }
-    out { (ref)profile type="app.bsky.actor.defs#profileViewDetailed" }
+lex app.bsky.actor.getProfile version=1 xrpc=query {
+    params { (str)actor format=at-identifier }
+    output "app.bsky.actor.defs#profileViewDetailed" encoding="application/json"
 }
 
-morphism "app.bsky.actor.getProfile" {
+rule "app.bsky.actor.getProfile" {
     requires input="actor"
     produces output="profile"
 }
 ```
 
-In Laplan, `required` is the default; `?` marks optional. The `query` / `procedure` distinction is preserved via `xrpc=` annotation; inputs and outputs use `in` / `out`. Type names use Laplan canonical forms (`str`, `i32`, `f64`, etc.). Declaring a morphism lets the solver resolve paths.
+In Laplan, `required` is the default; `?` marks optional. The `query` / `procedure` distinction is preserved via `xrpc=` annotation. Type names use Laplan canonical forms (`str`, `i32`, `f64`, etc.). Declaring a rule lets the solver resolve paths.
 
 The presence or absence of `xrpc=` exclusively separates two worlds:
 
@@ -103,34 +103,34 @@ The presence or absence of `xrpc=` exclusively separates two worlds:
 | Namespace | NSID (reversed domain) | Laplan namespace (free-form) |
 | Required default | optional (no `?` needed, Lexicon-compatible) | **required** (`?` for optional) |
 | Round-trip | `.json <-> .kdl <-> .lex` fully reversible | No counterpart in Lexicon JSON |
-| Example | `app.bsky.actor.getProfile` | `math.arith.add`, `io.std.print` |
+| Example | `app.bsky.actor.getProfile` | `i32.add`, `io.print` |
 
 ---
 
 ### What Only Laplan Can Express
 
-Lexicon JSON is one file = one NSID, with each endpoint isolated. KDL format (`.kdl` / `.lex`) allows **multiple lexicons in a single file**, enabling related declarations to be managed together. The following cannot be described in Lexicon and become expressible for the first time in Laplan:
+Lexicon JSON is one file = one NSID, with each endpoint isolated. KDL format (`.kdl` / `.lex`) allows **multiple lex declarations in a single file**, enabling related declarations to be managed together. The following cannot be described in Lexicon and become expressible for the first time in Laplan:
 
 | Capability | Description | Keyword |
 |---|---|---|
 | Non-API functions | Arithmetic, logic, etc. not tied to HTTP | `in` / `out` |
-| Side-effect declarations | What is needed and what is produced | `morphism` |
+| Rule declarations | What is needed and what is produced | `rule` |
 | Derivation | Batch, compose, or transform existing declarations | `derives` |
 | Composition pipelines | Multi-step handler chains | `handler` / `chain` |
 | Inverse relations | Action/undo pairs | `inverse` |
-| Dual queries | Forward/reverse commutativity conditions | `coherence` |
-| Algebraic laws | Group axioms, idempotency, homomorphisms | `law` |
+| Dual queries | Forward/reverse commutativity conditions | `dual` |
+| Algebraic laws | Group axioms, idempotency, homorules | `law` |
 | Resource consumption | Exclusive token consumption (general Petri net) | `consumes` |
 
 ```kdl
 // Arithmetic functions (not an API)
-math.arith.add {
+i32.add {
     in { (i32)a; (i32)b }
     out { (i32)result }
 }
 
-// Side-effect declarations (what is needed and what is produced)
-morphism "app.bsky.actor.getProfile" {
+// Rule declarations (what is needed and what is produced)
+rule "app.bsky.actor.getProfile" {
     requires input="actor"
     produces output="profile"
 }
@@ -158,7 +158,7 @@ inverse mute_actor {
 }
 
 // Dual queries (commutativity conditions for forward/reverse)
-coherence follow_dual {
+dual follow_dual {
     record "app.bsky.graph.follow"
     forward "app.bsky.graph.getFollows" direction=outgoing key="subject"
     reverse "app.bsky.graph.getFollowers" direction=incoming key="subject"
@@ -182,7 +182,7 @@ Each declaration becomes a transition on a Petri net, and the solver automatical
 | Format | JSON (`.json`) / KDL (`.kdl`) | KDL (`.lex`) |
 | Purpose | API schema definition | Typed description & composition of computation |
 | Namespace | NSID (reversed domain) | Free (dot-separated) |
-| Composition | None (call only) | coherence / derives / Petri net |
+| Composition | None (call only) | dual / derives / Petri net |
 | Required | optional by default | **required by default** |
 | Type names | `string`, `integer`, `number` | `str`, `i32`, `i64`, `f64` |
 
@@ -223,26 +223,26 @@ Structured types:
 }
 ```
 
-### 2. Morphism (Transition Declaration): Relations Between Types
+### 2. Rule (Transition Declaration): Relations Between Types
 
-Declare **reachability** between types. These are transitions in the Petri net. A morphism declares only "what is needed and what is produced"; implementation is delegated to bridges.
+Declare **reachability** between types. These are transitions in the Petri net. A rule declares only "what is needed and what is produced"; implementation is delegated to bridges.
 
 ```kdl
 // Login: produces auth tokens
-morphism "com.atproto.server.createSession" {
+rule "com.atproto.server.createSession" {
     produces capability="access_jwt"
     produces capability="refresh_jwt" ttl=86400
 }
 
 // Token refresh: consumes refresh, produces new access
-morphism "com.atproto.server.refreshSession" {
+rule "com.atproto.server.refreshSession" {
     requires capability="refresh_jwt"
     consumes capability="refresh_jwt"      // consumed on use
     produces capability="access_jwt" ttl=3600
 }
 
 // Get profile: requires access_jwt
-morphism "app.bsky.actor.getProfile" {
+rule "app.bsky.actor.getProfile" {
     requires capability="access_jwt"
 }
 ```
@@ -251,7 +251,7 @@ Token existence, expiry (`ttl`), and exclusive consumption (`consumes`) become t
 
 ### 3. Functions (Transition Constraints): Concretizing Type Signatures
 
-Morphisms alone only establish type relations. Functions give those paths **concrete type signatures**.
+Rules alone only establish type relations. Functions give those paths **concrete type signatures**.
 
 ```kdl
 app.bsky.actor.getProfile xrpc=query {
@@ -284,20 +284,20 @@ handler "ink.illo.dm.send" {
 }
 ```
 
-### Types -> Morphism -> Function -> Chain: Layering Constraints
+### Types -> Rule -> Function -> Chain: Layering Constraints
 
 | Layer | Declares | Style |
 |---|---|---|
 | **Type** (place) | What exists | Most declarative |
-| **Morphism** | What can reach what (direction) | |
+| **Rule** | What can reach what (direction) | |
 | **Function** | What goes in, what comes out (type signature) | |
 | **Chain** | What order to traverse (procedure) | Most imperative |
 
 > Higher layers delegate to the solver; lower layers are specified by the programmer.
 
-**If the upper layers suffice, the lower ones can be omitted.** If the solver finds a unique path from morphisms alone, neither functions nor chains are needed. If not, add constraints at lower layers.
+**If the upper layers suffice, the lower ones can be omitted.** If the solver finds a unique path from rules alone, neither functions nor chains are needed. If not, add constraints at lower layers.
 
-At high levels (APIs), delegating to the solver via morphisms alone is natural. "I have a DID, I want a profile" is sufficient. Even at low levels (arithmetic), declaring algebraic laws via `law` lets the solver identify equivalent paths, and execution order and parallelism are derived from type dependencies. Chains are not theoretically required, but useful when expressing the goal as types is difficult, or when stating a procedure directly is clearer than writing structural constraints.
+At high levels (APIs), delegating to the solver via rules alone is natural. "I have a DID, I want a profile" is sufficient. Even at low levels (arithmetic), declaring algebraic laws via `law` lets the solver identify equivalent paths, and execution order and parallelism are derived from type dependencies. Chains are not theoretically required, but useful when expressing the goal as types is difficult, or when stating a procedure directly is clearer than writing structural constraints.
 
 Frequently used solver paths can be pinned as chains. This eliminates solver path-discovery cost, yielding a deterministic function.
 
@@ -336,19 +336,19 @@ The solver resolves Petri net reachability via **breadth-first search (BFS)**.
 
 The solver tries all fireable transitions breadth-first and returns the shortest path to the goal. Only transitions whose produces match the goal remain in the path.
 
-#### Combining Multiple biblios
+#### Combining Multiple cratis
 
-When multiple biblios are loaded simultaneously, all transitions merge into a single TransitionTable. Where API surfaces between biblios touch, the solver discovers cross-biblio paths.
+When multiple cratis are loaded simultaneously, all transitions merge into a single TransitionTable. Where API surfaces between cratis touch, the solver discovers cross-cratis paths.
 
-| biblio | Transition | requires | produces |
+| cratis | Transition | requires | produces |
 |---|---|---|---|
 | `atproto/` | `resolve_handle` | _(none)_ | `did` |
 | `bsky/` | `getProfile` | `did` | `profile` |
 | `bsky-cli/` | `display_profile` | `profile` | _(display)_ |
 
-> **Solver result**: `resolve_handle` → `getProfile` → `display_profile` (cross-biblio path)
+> **Solver result**: `resolve_handle` → `getProfile` → `display_profile` (cross-cratis path)
 
-Each biblio declares only its own provides / requires. The solver handles composition.
+Each cratis declares only its own provides / requires. The solver handles composition.
 
 #### Path Convergence and Branching
 
@@ -369,7 +369,7 @@ This is a legitimate branch: "profile can be obtained from either a DID or a han
 2. **Add requires**: Differentiate by attaching a capability to one
 3. **Pin with chain**: Explicitly specify the desired path
 
-Real-world case where 3 paths emerged: When solving Lexicon JSON as-is, the JWT token in the HTTP header was not part of the API definition, so the requires for `getProfile` / `getBlocks` / `getFollows` were all just `[did]`. Adding capability to the morphisms converged to 1 path.
+Real-world case where 3 paths emerged: When solving Lexicon JSON as-is, the JWT token in the HTTP header was not part of the API definition, so the requires for `getProfile` / `getBlocks` / `getFollows` were all just `[did]`. Adding capability to the rules converged to 1 path.
 
 **Multiple paths are design feedback.** When the solver returns branches, it's a signal to review the requires / produces declarations.
 
@@ -398,10 +398,10 @@ The solver operates in two layers. The same BFS algorithm is reused with differe
 
 | Layer | Target | Input | Output | Fact examples |
 |---|---|---|---|---|
-| Layer 1: morphism solver | API paths | marking (capabilities etc.) + goal | Recipe (NSID sequence) | `Capability("access_jwt")`, `Datum("profile")` |
+| Layer 1: rule solver | API paths | marking (capabilities etc.) + goal | Recipe (NSID sequence) | `Capability("access_jwt")`, `Output("profile")` |
 | Layer 2: instruction solver | WASM instruction selection | value-level marking + goal | Recipe (opcode sequence) | `Value { ty: "f64", name: "a" }`, `SimdValue { ty: "f64x2", name: "ab" }` |
 
-Layer 2 places SIMD transitions (generated from kind's `vectorize` derives) alongside scalar transitions in the same table. When BFS discovers the shortest path, SIMD paths are automatically selected if shorter than scalar paths.
+Layer 2 places SIMD transitions (generated from family's `vectorize` derives) alongside scalar transitions in the same table. When BFS discovers the shortest path, SIMD paths are automatically selected if shorter than scalar paths.
 
 ```
 // Example: sum_of_squares
@@ -412,17 +412,17 @@ Layer 2 places SIMD transitions (generated from kind's `vectorize` derives) alon
 
 **SIMD optimization is not an optimization pass, but a consequence of shortest-path discovery on the Petri net.**
 
-### 5. Kind: Type Bundle for Isomorphic Operations
+### 5. Family: Type Family for Isomorphic Operations
 
-Declares isomorphic relations between types. A kind means "these types share the same operation signatures."
+Declares isomorphic relations between types. A family is a closed set of types sharing the same operation signatures.
 
 ```kdl
-kind "Numeric" {
+family "Numeric" {
     members {
-        "integer"    wasm="i32"
-        "integer64"  wasm="i64"
-        "float32"    wasm="f32"
-        "number"     wasm="f64"
+        "i32"   wasm="i32"
+        "i64"   wasm="i64"
+        "f32"   wasm="f32"
+        "f64"   wasm="f64"
     }
     signature "add" { in { (Self)a; (Self)b } out { (Self)result } }
     signature "sub" { in { (Self)a; (Self)b } out { (Self)result } }
@@ -431,10 +431,10 @@ kind "Numeric" {
 }
 ```
 
-A kind declares natural transformations in the category of types. The `vectorize` derives pattern automatically derives SIMD transitions from kind signatures:
+A family declares a closed set of types sharing isomorphic operations. The `vectorize` derives pattern automatically derives SIMD transitions from family signatures:
 
 ```
-Numeric kind:
+Numeric family:
   integer  --- add --> integer       vectorize (functor)
   number   --- add --> number    →   f64x2 --- add --> f64x2
   float32  --- add --> float32       f32x4 --- add --> f32x4
@@ -450,44 +450,44 @@ Numeric kind:
 | `binary_accumulate` | Derive iterative from binary operations | `mod_mul` from `mod_add` |
 | `conditional` | Conditional branching | `abs` via sign check |
 | `host_import` | Import from host environment | `fp_add` from WASM host |
-| `vectorize` | Auto-derive SIMD transitions from kind isomorphisms | `f64x2.add`, `f32x4.mul` from Numeric kind |
+| `vectorize` | Auto-derive SIMD transitions from family isorules | `f64x2.add`, `f32x4.mul` from Numeric family |
 
 ```kdl
 // Composition: define new functions by combining existing ones
-derives "math.composed.sum_of_squares" via compose {
-    sources "math.arith.multiply" "math.arith.add"
+derives "i32.sum_of_squares" via compose {
+    sources "i32.mul" "i32.add"
     steps {
-        step "math.arith.multiply" input="a,a" output="sq_a"
-        step "math.arith.multiply" input="b,b" output="sq_b"
-        step "math.arith.add" input="sq_a,sq_b" output="result"
+        step "i32.mul" input="a,a" output="sq_a"
+        step "i32.mul" input="b,b" output="sq_b"
+        step "i32.add" input="sq_a,sq_b" output="result"
     }
 }
 
 // Accumulation: derive iterative operations from binary operations (e.g., addition -> multiplication)
-derives "math.mod.mod_mul" from "math.mod.mod_add" via binary_accumulate {
+derives "algebra.modular.mod_mul" from "algebra.modular.mod_add" via binary_accumulate {
     identity 0
-    halve "math.bit64.shr1"
-    test "math.bit64.test_lsb"
+    halve "i64.shr1"
+    test "i64.test_lsb"
 }
 
 // Conditional branching
-derives "math.arith.abs" via conditional {
+derives "i32.abs" via conditional {
     cond "i32.lt_s(a, 0)"
     then "i32.neg(a)"
     else "a"
 }
 
 // Host import
-derives "math.galois.fp_add" via host_import {
-    module "math.galois" name "math.galois.fp_add"
+derives "algebra.field.gf256.fp_add" via host_import {
+    module "algebra.field.gf256" name "algebra.field.gf256.fp_add"
 }
 
-// vectorize: auto-derive SIMD transitions from kind isomorphisms
-derives "simd.f64x2" from kind="Numeric" member="number" via vectorize {
+// vectorize: auto-derive SIMD transitions from family isorules
+derives "simd.f64x2" from family="Numeric" member="number" via vectorize {
     lane-width 2
     target "wasm"
 }
-derives "simd.f32x4" from kind="Numeric" member="float32" via vectorize {
+derives "simd.f32x4" from family="Numeric" member="float32" via vectorize {
     lane-width 4
     target "wasm"
 }
@@ -526,29 +526,39 @@ A bridge is a connection point to external implementations (e.g., Rust crates) a
 
 Built-in base declarations for Laplan. All with zero external dependencies.
 
-> **The term axiom:** An `axiom` refers to declarations that belong to a layer **beyond** the category of `.lex` implementations and are trusted unconditionally. This includes standard library primitives, values at the API boundary (HTTP headers, runtime-provided values), and functor specifications via `import` (external Rust crates, etc.). The correctness of axioms is not something Laplan's solver verifies; it is accepted as a premise. This mirrors the role of axioms in mathematics.
+> **The term axiom:** An `axiom` refers to declarations that belong to a layer **beyond** the category of `.lex` implementations and are trusted unconditionally. This includes standard cratisry primitives, values at the API boundary (HTTP headers, runtime-provided values), and functor specifications via `import` (external Rust crates, etc.). The correctness of axioms is not something Laplan's solver verifies; it is accepted as a premise. This mirrors the role of axioms in mathematics.
 
 | Module | Contents |
 |---|---|
-| `math/` | i32 arithmetic, i64 arithmetic, f32 arithmetic, f64 arithmetic, bit ops, logic, modular, Galois fields, matrices, random |
-| `kind/` | Type bundles for isomorphic operations (Numeric: unifying i32/i64/f32/f64 arithmetic) |
-| `data/` | array, map, bytes, json, cbor, cid, car, encoding (base64/58), kdl, tree |
-| `text/` | string, patch, diff, wrap, fuzzy, path |
-| `memory/` | linear memory (WASM load/store) |
+| `i32/` | Arithmetic, bit operations |
+| `i64/` | 64-bit arithmetic, bit operations |
+| `f32/` | 32-bit floating point operations |
+| `f64/` | 64-bit floating point operations |
+| `bool/` | Logic operations |
+| `str/` | String operations, patch, diff, wrap, fuzzy, path, derives |
+| `bytes/` | Byte sequence operations |
+| `array/`, `map/`, `tree/` | Collection operations |
+| `json/`, `cbor/`, `kdl/` | Serialization formats |
+| `cid/`, `car/` | Content-addressable data |
+| `encoding/` | base64, base58 |
+| `algebra/` | Modular arithmetic, Galois fields, matrices, family (Numeric), monoid, group |
+| `category/` | compose, dual, lift, product, fold, restrict, law |
+| `convert/` | Type conversion (i32_to_i64, etc.) |
+| `random/` | Pseudo-random number generators |
 | `crypto/` | hash (sha256/sha1/hmac), secp256k1, vault |
+| `memory/` | Linear memory (WASM load/store), access |
+| `effect/` | import |
 | `integrity/` | assert |
-| `io/` | std (print) |
-| `coherence/` | aggregate, batch, dual, inverse, law, compose, accumulate, specialize, conditional, host_import, vectorize, string_derives |
-
-`coherence/` declares relations between axioms. Aggregate count invariants, forward/reverse query duality, action/undo inverse pairs, algebraic laws (group axioms, idempotency, homomorphisms), function composition, SIMD vectorization, etc.
+| `io/` | print, time, rand |
+| `time/`, `length/`, `mass/`, `temperature/`, `frequency/` | Dimensional quantities (duration, distance, etc.) |
 
 ---
 
-## biblio: Domain-Specific Libraries
+## cratis: Domain-Specific Libraries
 
-Independent `.lex` file collections, like crates. Each declares provides / requires in `module.lex`.
+Independent `.lex` file collections, like crates. Each declares provides / requires in `cratis.lex`.
 
-| biblio | Domain |
+| cratis | Domain |
 |---|---|
 | `atproto/` | AT Proto (`com.atproto.*`) |
 | `bsky/` | Bluesky (`app.bsky.*`) |
@@ -556,22 +566,22 @@ Independent `.lex` file collections, like crates. Each declares provides / requi
 | `bsky-cli/` | CLI command definitions |
 | `pds-frontpage/` | PDS front page |
 
-### biblio Structure
+### cratis Structure
 
-Example: `biblio/encrypted-dm/`
+Example: `cratis/encrypted-dm/`
 
 | Path | Role |
 |---|---|
-| `lex/module.lex` | provides / requires declarations |
+| `lex/cratis.lex` | provides / requires declarations |
 | `lex/dm.lex` | Record types & procedure definitions |
 | `lex/chain.lex` | Handler pipelines |
-| `lex/morphism.lex` | Side-effect declarations |
+| `lex/rule.lex` | Rule declarations |
 | `lex/import.lex` | Type boundaries for external bridges |
-| `src/generated/` | codegen output (e.g., Rust) |
+| `src/synth/` | synthesis output (e.g., Rust) |
 
-`module.lex`:
+`cratis.lex`:
 ```kdl
-module "encrypted-dm" version=1 {
+cratis "encrypted-dm" version=1 {
     description "Encrypted DM"
     namespace "ink.illo.dm"
 
@@ -590,24 +600,26 @@ module "encrypted-dm" version=1 {
 
 ---
 
-## Composition: biblio and libraria
+## Composition
 
-Laplan projects are structured in two tiers: biblio and libraria.
+`cratis` serves as both a single package and a workspace. Determined by the presence of `members`:
 
-| Laplan | Cargo | Role |
+> **cratis**: Latin for framework/lattice. The etymological root of English "crate". A frame holding lexicons.
+
+| Form | Cargo | Determined by |
 |---|---|---|
-| `biblio.lex` | `Cargo.toml` (single crate) | Single package provides/requires declaration |
-| `libraria.lex` | `Cargo.toml [workspace]` | Multi-package bundling with face definitions |
+| Single cratis | `Cargo.toml` (single crate) | No `members` |
+| Workspace cratis | `Cargo.toml [workspace]` | Has `members` |
 
-Each biblio declares only its own provides/requires. The solver automatically connects interfaces and discovers cross-biblio paths.
+Each cratis declares only its own provides/requires. The solver automatically connects interfaces and discovers cross-cratis paths.
 
-A libraria bundles multiple biblios and defines faces. A face determines "from this perspective, what to generate and what to trust as a premise."
+A workspace cratis bundles multiple cratis and defines faces. A face determines "from this perspective, what to generate and what to trust as a premise."
 
 ```kdl
-libraria "my-app" {
+cratis "my-app" {
     members {
-        "atproto-client" path="biblio-client"
-        "atproto-server" path="biblio-server"
+        "atproto-client" path="client/cratis.lex"
+        "atproto-server" path="server/cratis.lex"
     }
     faces {
         face "client" {
@@ -622,10 +634,10 @@ libraria "my-app" {
 }
 ```
 
-- **emit**: codegen target. Generate code for this biblio
+- **emit**: synthesis target. Generate code for this cratis
 - **axiom**: trusted premise. Reference the interface only; no code is generated
 
-In the client face, the server side is an axiom (trusted to exist). In the server face, the client side is an axiom. The solver's search space changes depending on the face, even within the same libraria.
+In the client face, the server side is an axiom (trusted to exist). In the server face, the client side is an axiom. The solver's search space changes depending on the face, even within the same workspace.
 
 ---
 
@@ -633,7 +645,7 @@ In the client face, the server side is an axiom (trusted to exist). In the serve
 
 ### Compiler and Codegen Built-in Resources
 
-Language target transformation rules are placed as **built-in resources** of the compiler / codegen under the `target.*` namespace. They are not placed in user projects.
+Language target transformation rules are placed as **built-in resources** of the compiler / synthesis under the `target.*` namespace. They are not placed in user projects.
 
 | Category | Namespace | Description |
 |---|---|---|
@@ -647,15 +659,15 @@ Each target consists of three files:
 
 | File | Role |
 |---|---|
-| `functor.lex` | Type mapping |
+| `mapping.lex` | Type mapping |
 | `morph.lex` | Syntax patterns |
 | `type.lex` | Type conversion |
 
-These are rules for codegen to know "how to write in this language," analogous to LLVM backend definitions inside `rustc`.
+These are rules for synthesis to know "how to write in this language," analogous to LLVM backend definitions inside `rustc`.
 
 ### WASM Binary Build
 
-Generates WASM modules from axiom declarations + coherence derives.
+Generates WASM modules from axiom declarations + distributed derives/pattern definitions.
 
 > `axiom/*.lex` → **compiler** → `.wasm`
 
@@ -669,7 +681,7 @@ Derives expansion rules:
 
 - `derives via compose` / `derives via binary_accumulate` → expanded into WASM instruction sequences
 - `derives via host_import` → converted to WASM import sections
-- `derives via vectorize` → auto-generates SIMD transitions from kind signature x member x lane-width
+- `derives via vectorize` → auto-generates SIMD transitions from family signature x member x lane-width
 
 ### Compiler Options
 
@@ -684,7 +696,7 @@ The three flags are orthogonal and freely combinable:
 
 ```bash
 # From places alone, generate SIMD-optimized + side-channel-safe WASM functions
-laplan compile biblio/encrypted-dm/ --bake --simd --constant-time
+laplan compile cratis/encrypted-dm/ --bake --simd --constant-time
 ```
 
 `--bake` turns the solver into a linker. All symbol resolution is completed at compile time.
@@ -693,14 +705,14 @@ laplan compile biblio/encrypted-dm/ --bake --simd --constant-time
 
 ### Multi-Language Codegen
 
-From axiom + biblio declarations, codegen references built-in target definitions to generate source code for each language.
+From axiom + cratis declarations, synthesis references built-in target definitions to generate source code for each language.
 
-> `axiom/*.lex` + `biblio/*.lex` → **codegen** → `src/generated/*`
+> `axiom/*.lex` + `cratis/*.lex` → **synthesis** → `src/synth/*`
 
 | Target | Output |
 |---|---|
-| `target.lang.rust` | `src/generated/*.rs` |
-| `target.lang.python` | `src/generated/*.py` |
+| `target.lang.rust` | `src/synth/*.rs` |
+| `target.lang.python` | `src/synth/*.py` |
 | ... | (same pattern for all languages) |
 
 Supported languages (22 targets; 18 active, 3 deferred, 1 removed):
@@ -731,20 +743,20 @@ Maturity levels: L1: syntax lint pass, L2: type compilation pass, L3: package bu
 | Elixir | Functional | deferred |
 | Gleam | Functional | deferred |
 
-### biblio Output Location
+### cratis Output Location
 
-Output location varies by codegen target. Example for Rust target (`biblio/encrypted-dm/`):
+Output location varies by synthesis target. Example for Rust target (`cratis/encrypted-dm/`):
 
 | Path | Role | Source |
 |---|---|---|
 | `lex/*.lex` | Declarations | Input (source) |
-| `src/generated/mod.rs` | Module root | codegen output |
-| `src/generated/handler.rs` | Handler implementations | codegen output |
+| `src/synth/mod.rs` | Module root | synthesis output |
+| `src/synth/handler.rs` | Handler implementations | synthesis output |
 | `src/bridge.rs` | Bridge implementation | Source |
-| `src/lib.rs` | Binds `generated/` as a crate | Source |
+| `src/lib.rs` | Binds `synth/` as a crate | Source |
 | `Cargo.toml` | Crate manifest | Source |
 
-For Rust, `src/generated/` + `src/lib.rs` function as a crate. For WASM binaries, the output goes to `target/` (same as Cargo).
+For Rust, `src/synth/` + `src/lib.rs` function as a crate. For WASM binaries, the output goes to `target/` (same as Cargo).
 
 ---
 
@@ -756,7 +768,7 @@ For Rust, `src/generated/` + `src/lib.rs` function as a crate. For WASM binaries
    - 1 path → done
    - Multiple paths → insufficient constraints
    - Unreachable → check missing facts
-4. **Add what's missing** ... morphisms, capabilities, a few axiom lines
+4. **Add what's missing** ... rules, capabilities, a few axiom lines
 5. **Return to 1**
 
 There is a proven track record of loading AT Protocol Lexicons (~100 NSIDs) as-is, adding just a few lines of capability for request headers, and having the solver automatically resolve all paths. The Lexicon designers weren't thinking about Petri nets, but because they honestly wrote types and inputs/outputs as API definitions, that alone was enough for paths to converge.
