@@ -2,7 +2,9 @@
 
 [日本語](README-ja.md)
 
-> **Note:** This document includes planned features and designs. Details may change at release.
+> **Note:** These documents include planned features and designs. Details may change at release.
+
+[docs](docs/en/INDEX.md)
 
 A metatype programming language that declares types and relations in KDL format and synthesizes them via Petri net path resolution.
 
@@ -16,7 +18,7 @@ Given types `did` and `profile`, the question "is there a path from did to profi
 
 This path search is formalized as a Petri net reachability problem. The solver's design draws from Lean's tactic system: the more abstract the constraints (law, rule), the more powerfully the solver works; the more concrete the procedure, the more the programmer specifies manually. This mirrors the relationship between `ring` / `simp` and manual `apply`.
 
-That paths serve as reachability proofs, that constraints change reachability, and that annotations are non-recoverable from types alone have been formally verified in Lean 4 / Mathlib ([lean-lexicon](https://github.com/barineco/lean-lexicon)). Related: [lean-eigenraum](https://github.com/barineco/lean-eigenraum) (formal verification of vibrational energy transport, 136 theorems, zero sorry).
+That paths serve as reachability proofs, that constraints change reachability, and that annotations are non-recoverable from types alone have been formally verified in Lean 4 / Mathlib ([lean-lexicon](https://github.com/barineco/lean-lexicon)).
 
 ## What This Enables
 
@@ -171,7 +173,7 @@ Lexicon defines "what does this API accept and return." Laplan defines "how does
 
 ## Overview
 
-Laplan is a language inspired by the AT Protocol's [Lexicon](https://atproto.com/specs/lexicon) schema format. Just as Lexicon declares API endpoints, Laplan declares **typed interfaces for computation**.
+Laplan is a language inspired by the AT Protocol's [Lexicon](https://atproto.com/specs/lexicon) API schema format. Just as Lexicon declares API endpoints, Laplan declares **typed interfaces for computation**.
 
 Each declaration becomes a transition on a Petri net, and the solver automatically discovers paths that satisfy `requires` (needed tokens) and `produces` (generated tokens). The programmer writes "what I have and what I want," and Laplan resolves the path.
 
@@ -518,7 +520,7 @@ import "neco-vault" {
 }
 ```
 
-A bridge is a connection point to external implementations (e.g., Rust crates) at Laplan's type boundary. Only input/output types are declared; implementation is delegated externally.
+A bridge is a connection point to external implementations (e.g., Rust crates) at Laplan's type boundary. Only input/output types are declared; implementation ownership lies outside Laplan.
 
 ---
 
@@ -556,7 +558,7 @@ Built-in base declarations for Laplan. All with zero external dependencies.
 
 ## cratis: Domain-Specific Libraries
 
-Independent `.lex` file collections, like crates. Each declares provides / requires in `cratis.lex`.
+Independent `.lex` file collections, like crates. The plural of cratis is also cratis. Each declares provides / requires in `cratis.lex`.
 
 | cratis | Domain |
 |---|---|
@@ -781,8 +783,8 @@ There is a proven track record of loading AT Protocol Lexicons (~100 NSIDs) as-i
 
 1. **Types are the foundation.** If types exist, a Petri net emerges and path questions become valid. Functions are constraints on paths, not starting points.
 2. **Declarations are the source of truth.** Code is generated from declarations. The existence of user-authored code implies insufficient declarations.
-3. **Individuals are finite; the whole is Turing-complete.** The solver's search space is finite and always terminates, enabling enumeration and diagnosis of all paths. Each bridge (Rust crate, WASM, HTTP API) also has a finite interface. Yet the possibility space of their combinations reaches Turing completeness. Because each individual is explorable, the whole becomes soundly Turing-complete.
-4. **Zero external dependencies.** axiom's bridge backing (neco-crates) is all pure Rust. Environment-agnostic.
+3. **Individuals are finite; the whole is Turing-complete.** The solver's search space is finite and always terminates, enabling enumeration and diagnosis of all paths. Each bridge (Rust crate, WASM, HTTP API) has a finite interface. Their combinations reach Turing completeness, and because each individual is finite and explorable, that completeness is sound.
+4. **axiom has zero external dependencies.** The standard library (axiom) has no external crate dependencies.
 5. **Interconvertibility.** `.json <-> .kdl <-> .lex` is fully reversible with `xrpc=`. Type names are also bidirectionally converted (`str` <-> `string`).
 6. **Petri net path resolution.** Declare "what you have" and "what you need," and the solver discovers composition paths.
 7. **Optimization as a consequence of path discovery.** SIMD is not a cost function addition but the result of the instruction solver's BFS shortest-path discovery. Constant-time execution is the result of transition filtering. Parallelization is the result of automatic detection of independent transitions. Rather than adding optimization passes, Laplan leverages structural properties of the Petri net.
