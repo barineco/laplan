@@ -1,6 +1,6 @@
 # Solver と型規律
 
-solver は rule の型宣言から Petri net の到達可能性を探索します。探索結果の正しさは、型宣言がドメインの制約を正確に反映しているかに依存します。宣言された世界に忠実であり、宣言外の制約は推測対象外です。
+solver は rule の型宣言から Petri net の到達可能性を探索します。探索結果の正しさは、型宣言がドメインの制約を正確に反映しているかに依存します。宣言された世界に忠実であり、宣言外の制約を solver は推測しません。
 
 このケーススタディでは、solver が返すショートカット (期待より短い経路) を型の精密化で解消する手法を扱います。
 
@@ -80,9 +80,9 @@ DB にアカウントを格納する操作 (`store_account`) と、DB からア�
 
 ```kdl
 rule "store_account" {
-    requires output="did"
-    produces output="account"
-    produces output="account-record"    // 格納証拠: store からのみ得られる
+  requires output="did"
+  produces output="account"
+  produces output="account-record"    // 格納証拠: store からのみ得られる
 }
 ```
 
@@ -105,9 +105,9 @@ goal に `account-record` を含めれば、solver は `store_account` を経由
 ```kdl
 // 共有 fact (did) をそのまま使うと他の endpoint が割り込む
 rule "generate_did" {
-    requires output="handle"
-    produces output="did"           // 共有 fact
-    produces output="created-did"   // semantic fact: この endpoint の文脈
+  requires output="handle"
+  produces output="did"           // 共有 fact
+  produces output="created-did"   // semantic fact: この endpoint の文脈
 }
 ```
 
@@ -115,10 +115,10 @@ rule "generate_did" {
 
 ```kdl
 rule "issue_session_pair_from_account_record" {
-    requires output="account-record"
-    produces output="access-jwt"
-    produces output="refresh-jwt"
-    produces output="create-account-complete"   // completion token
+  requires output="account-record"
+  produces output="access-jwt"
+  produces output="refresh-jwt"
+  produces output="create-account-complete"   // completion token
 }
 ```
 
@@ -141,7 +141,9 @@ issue_session_pair   : account-record → create-account-complete
 
 ## 外部依存の信頼境界
 
-格納証拠や semantic fact で solver が検証するのは category 内部の型連鎖であり、category の外側 (axiom) は信頼の対象ですが検証の対象外です。
+> **用語:** このケーススタディでは、solver が到達可能性を検証する空間を便宜上 *category* と呼びます。圏論の圏と着想は共有していますが、厳密な数学的定義に従ったものではありません。正式な呼称は未確定です。
+
+格納証拠や semantic fact で solver が検証するのは category 内部の型連鎖です。category の外側 (axiom) は信頼の前提であり、solver は検証を行いません。
 
 | 範囲 | solver の関与 | 例 |
 |---|---|---|
@@ -152,11 +154,11 @@ category 内の rule が axiom の操作を経由することを `composed-of` �
 
 ```kdl
 rule "store_account" {
-    requires output="created-did"
-    requires output="account-create-ready"
-    composed-of "datum.record.create"    // axiom 経由を明示
-    produces output="account"
-    produces output="account-record"     // 格納証拠
+  requires output="created-did"
+  requires output="account-create-ready"
+  composed-of "datum.record.create"    // axiom 経由を明示
+  produces output="account"
+  produces output="account-record"     // 格納証拠
 }
 ```
 

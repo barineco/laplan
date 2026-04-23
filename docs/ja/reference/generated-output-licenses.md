@@ -81,6 +81,6 @@ laplan が出力するファイルには、由来に応じて MIT または MPL-
 | `SYNTHESIZED_HEADER` | synthesis 出力全般 | MIT |
 | `INVERSE_HEADER` | inverse 出力 | MIT |
 
-runtime solver 向けのヘッダは `atproto-server` feature 経由で `write_runtime_resolve` が emit し、MPL-2.0 を宣言します。
+runtime solver 向けのヘッダは `SYNTHESIZED_SOLVER_HEADER` 定数で定義され、MPL-2.0 を宣言します。
 
 言語ごとのコメント接頭辞変換は `rewrite_header_prefix(header, prefix)` (`compiler/ir/src/lib.rs`) が担います。

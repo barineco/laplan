@@ -11,10 +11,10 @@ Each language target definition (`axiom/target/lang/{lang}/mapping.lex`) has a `
 ```kdl
 // axiom/target/lang/python/mapping.lex
 bindings {
-    "signature.verify.ES256K" package="cryptography" version="41.0" \
-        import="cryptography.hazmat.primitives.asymmetric.ec.ECDSA"
-    "signature.verify.P-256"  package="cryptography" version="41.0" \
-        import="cryptography.hazmat.primitives.asymmetric.ec.ECDSA"
+  "signature.verify.ES256K" package="cryptography" version="41.0" \
+    import="cryptography.hazmat.primitives.asymmetric.ec.ECDSA"
+  "signature.verify.P-256"  package="cryptography" version="41.0" \
+    import="cryptography.hazmat.primitives.asymmetric.ec.ECDSA"
 }
 ```
 

@@ -150,6 +150,39 @@ impl TransitionTable {
 
 `search` returns the shortest path. `search_all` returns all paths up to `max_depth`. `search_dry_run` confirms paths only, without side effects.
 
+## N-Face Joint Solve
+
+In workspace mode, an integrated solver operates across multiple faces.
+
+`JointTransitionTable` combines the `TransitionTable` of each face and generates cross-boundary transitions based on boundary rules.
+
+```
+per-face TransitionTable (built independently per face)
+   ↓ filtered by boundary rules
+JointTransitionTable (with cross-boundary transitions added)
+   ↓
+BFS over JointMarking (face → Marking map)
+```
+
+`JointMarking` is a `BTreeMap<FaceId, Marking>` that independently tracks the current marking for each face. When a cross-boundary transition fires, the calling face's marking is updated. The peer face's (callee's) requires are back-propagated as initial capabilities to the calling face.
+
+### Construction APIs
+
+```rust
+// Build from a single face (non-workspace mode)
+JointTransitionTable::from_single_face(face, table)
+
+// Build from multiple faces (workspace mode)
+JointTransitionTable::from_per_face(per_face, boundary_rules_by_face)
+
+// Build with trust levels (when stub faces are involved)
+JointTransitionTable::from_per_face_with_trust(per_face, boundary_rules_by_face, face_trust)
+```
+
+### Relationship to the Former Single-Face Path
+
+The former solve path using a standalone `TransitionTable` is retired. All paths now go through `JointTransitionTable`. `from_single_face` preserves the legacy behavior.
+
 ## SolveOutput
 
 ```rust
@@ -171,7 +204,7 @@ pub enum SolveOutput {
 | `PreflightRequired` | Preflight required to cross an axiom boundary |
 | `AmbiguousAxiomCrossing` | Multiple candidates, cannot determine uniquely |
 | `NeedsUserAction` | User input (input / selected) is missing |
-| `Boundary` | Request crosses a client / server boundary |
+| `Boundary` | Request crosses a face boundary |
 | `InvalidGoalSpec` | Syntax error in goal specification |
 
 ## Pruning
@@ -183,7 +216,7 @@ Lex₂ structural constraints narrow the Lex₁ space the solver explores.
 | `inverse` | Omits one of a pair of paths with inverse morphisms |
 | `func.law` | Identifies equivalent paths. Symmetry reduction via algebraic laws. |
 | `func.family` | Consolidates duplicate paths by expanding product / vectorize components |
-| `boundary` | Splits the search space by client / server separation |
+| `boundary` | Splits the search space by face separation |
 | `invariant` | Eliminates violating paths via invariants such as count consistency |
 
 ## Diagnostics (Layer 2)
@@ -200,6 +233,36 @@ Lex₂ structural constraints narrow the Lex₁ space the solver explores.
 | `LawTargetNotFound` | Target rule referenced by a law is undefined |
 
 `diagnose_convergent_paths` is computationally expensive and is called separately from `diagnose`.
+
+### EndpointDiagnosis
+
+`EndpointDiagnosis` represents the pre-validation result for each cross-boundary endpoint. `diagnose_cross_boundary(face)` diagnoses all cross-boundary transitions in a face and returns `Vec<EndpointDiagnosis>`.
+
+```rust
+pub struct EndpointDiagnosis {
+    pub nsid: String,
+    pub kind: EndpointKind,
+    pub prerequisites: Vec<String>,
+}
+
+pub enum EndpointKind {
+    Matched,
+    MultiPath { alternatives: Vec<Vec<String>> },
+    MissingFact,
+    PrunedByBoundary { boundary: BoundaryKind },
+    PrunedByRefinement { rule_name: String, reason: String },
+}
+```
+
+| Variant | Meaning |
+|---|---|
+| `Matched` | A unique path was found. `prerequisites` holds the rule sequence to fire before the target endpoint. |
+| `MultiPath` | Multiple paths exist. `alternatives` lists each candidate. |
+| `MissingFact` | Required fact unavailable; no path. |
+| `PrunedByBoundary` | Pruned by a boundary constraint. |
+| `PrunedByRefinement` | Pruned by a refinement constraint. |
+
+This diagnosis is passed to synthesis to drive emit branching: `Matched` emits a prerequisite-guarded handler, `MultiPath` duplicates a dispatch function per alternative, and `MissingFact` / `PrunedBy*` are skipped in Rust or emitted as `never` in TypeScript.
 
 ## Layer 0 Lint
 

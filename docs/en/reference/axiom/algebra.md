@@ -20,9 +20,9 @@ A `family` is a closed set of types sharing isomorphic operations. SIMD / produc
 
 ```kdl
 family "Complex" = product("Numeric", 2) {
-    signature "mul" { in { (Self)a; (Self)b } out { (Self)result } }
-    signature "abs" { in { (Self)z } out { (f64)result } }
-    signature "conjugate" { in { (Self)z } out { (Self)result } }
+  signature "mul" { in { (Self)a; (Self)b } out { (Self)result } }
+  signature "abs" { in { (Self)z } out { (f64)result } }
+  signature "conjugate" { in { (Self)z } out { (Self)result } }
 }
 ```
 
@@ -61,10 +61,10 @@ family "Complex" = product("Numeric", 2) {
 | solve | newton, fixed-point, bisect-root |
 | divide | merge-sort, quickselect |
 
-Lex₂-layer unsafe recursive (via recursive) is label-only and outside the solver scope.
+Lex₂-layer unsafe recursive (via recursive) is label-only; the solver's search coverage ends at the label.
 
 ## Dependencies
 
-- Depends on `i32` / `i64` / `f32` / `f64` axioms as the base ([axiom-numeric](axiom-numeric.md)).
+- Depends on `i32` / `i64` / `f32` / `f64` axioms as the base ([axiom-numeric](axiom/numeric.md)).
 - Connects to GF(p) arithmetic in [`neco-galois`](https://github.com/barineco/neco-crates/tree/main/neco-galois) (implementations via morph.lex).
-- product / vectorize derivation cooperates with `product.lex` in [axiom-category](axiom-category.md).
+- product / vectorize derivation cooperates with `product.lex` in [axiom-category](axiom/category.md).

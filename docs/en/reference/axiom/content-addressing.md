@@ -42,7 +42,7 @@ CAR (Content Addressable aRchives): a v1 format that bundles multiple blocks int
 
 ## Dependencies
 
-- Depends on the `bytes` axiom ([axiom-string](axiom-string.md)).
-- Combined with the `cbor` axiom to provide determinism via DAG-CBOR ([axiom-serialization](axiom-serialization.md)).
+- Depends on the `bytes` axiom ([axiom-string](axiom/string.md)).
+- Combined with the `cbor` axiom to provide determinism via DAG-CBOR ([axiom-serialization](axiom/serialization.md)).
 - Implementations are [`neco-cid`](https://github.com/barineco/neco-crates/tree/main/neco-cid), [`neco-car`](https://github.com/barineco/neco-crates/tree/main/neco-car) (resolved in morph.lex).
 - Covers AT Protocol use cases such as MST (Merkle Search Tree), firehose, and repository.

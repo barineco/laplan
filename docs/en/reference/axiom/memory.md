@@ -22,15 +22,15 @@ Data structure access patterns. load / store NSIDs are resolved to WASM opcodes 
 
 ```kdl
 derives "array.len" via memory_access {
-    op "load"
-    opcode "i32.load"
-    offset "ptr"
+  op "load"
+  opcode "i32.load"
+  offset "ptr"
 }
 
 derives "array.get_f64" via memory_access {
-    op "load"
-    opcode "f64.load"
-    offset "i32.add(i32.add(ptr, 4), i32.mul(index, 8))"
+  op "load"
+  opcode "f64.load"
+  offset "i32.add(i32.add(ptr, 4), i32.mul(index, 8))"
 }
 ```
 
@@ -50,6 +50,6 @@ Typical patterns:
 
 ## Dependencies
 
-- `i32`, `i64`, `f32`, `f64` axioms ([axiom-numeric](axiom-numeric.md)).
+- `i32`, `i64`, `f32`, `f64` axioms ([axiom-numeric](axiom/numeric.md)).
 - Cooperates with WASM binary emit ([architecture/compiler.md](../architecture/compiler.md)).
 - The opcode mapping is read by `ir::mapping::parse_wasm_mapping_kdl`.

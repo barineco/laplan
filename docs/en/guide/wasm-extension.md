@@ -1,121 +1,54 @@
-# VSCode Extension and WASM
+# VS Code Extension and WASM
 
-`extension/` contains a VSCode extension that provides syntax highlighting, diagnostics, semantic tokens, inlay hints, and a Petri net webview for `.lex` files. The core is compiled to WASM and calls into `compiler/ir`, `compile`, and `synthesis`.
+`extension/` is the VS Code extension for `.lex`. Diagnostics, semantic tokens, and inlay hints come from WASM, while the Petri net UI mounts the Vue 3 build output from `@laplan/ui-render` inside the webview.
 
 ## Build
 
 ```bash
 cd extension
-npm install
-npm run build:wasm    # wasm-pack build
-npm run compile       # tsc
-npm run package       # wasm + tsc + vsix
+npm run build:wasm
+npm run compile
+npm run package
 ```
 
-Artifacts:
+- `build:wasm`: refreshes the node/web targets from `@laplan/core`
+- `compile`: runs `tsc -p .` and then uses `copy-webview.mjs` to copy `packages/ui-render/dist/` into `out/webview/`
+- `package`: emits the `.vsix`
 
-- `extension/wasm-pkg/`: `wasm-pack` output (gitignored)
-- `extension/laplan-lex-<version>.vsix`: distributable package
+## Webview Layout
 
-## Structure
+- `src/graph/petriNetPanel.ts`: reads `out/webview/index.html`, rewrites asset URIs, and injects CSP nonce values before creating the `WebviewPanel`
+- `src/graph/webviewHtml.ts`: injects nonce attributes into Vite output `script`, `stylesheet`, and inline `style` tags
+- `packages/ui-render/src/webviewApp.vue`: receives host messages and mounts `<PetriNetEditor>`
+- `packages/ui-render/src/webviewBridge.ts`: converts between graph data and `meta "view.graph.*"` payloads
 
-```
-extension/
-├── src/
-│   ├── extension.ts            # entry point
-│   ├── diagnostics.ts          # WASM results → VSCode diagnostics
-│   ├── graph/
-│   │   ├── types.ts            # rendering-agnostic graph model
-│   │   └── petriNetPanel.ts    # WebviewPanel management
-│   └── webview/
-│       ├── renderer.ts         # Renderer interface
-│       └── cytoscapeRenderer.ts
-├── wasm/
-│   └── src/lib.rs              # WASM API
-├── syntaxes/                   # TextMate grammar
-└── language-configuration.json
-```
+`packages/ui-render/vite.config.ts` sets `build.modulePreload = false`, which keeps the CSP rewrite limited to `script`, `stylesheet`, and inline `style`.
 
-### WASM API
+## Host and Webview Messages
 
-`extension/wasm/src/lib.rs` is the WASM export surface.
+Host to webview:
 
-```rust
-#[wasm_bindgen]
-pub fn diagnose_workspace(files: &JsValue) -> JsValue;
-```
+- `updateGraph`: sends the latest `PetriNetGraph` plus base sources
+- `updateMeta`: sends decoded `view/graph/*.lex` meta view files
+- `externalChange`: notifies the UI that the workspace changed outside the webview
 
-Return type:
+Webview to host:
 
-```ts
-type WorkspaceReport = {
-    diagnostics: Diagnostic[];
-    lints: Lint[];
-    connections: Connection[];
-    graph: {
-        transitions: GraphTransition[];
-        parallel_dag: ParallelDagData;
-        subtypes: Subtype[];
-        cratis: CratisEntry[];
-    };
-};
-```
+- `openFile`: opens the matching `.lex`
+- `applyLexEdit`: applies rule stub append/remove operations through `WorkspaceEdit`
+- `applyMetaEdit`: creates or replaces `view/graph/<nsid>.lex` and saves it
 
-The extension links `laplan-ir`, `laplan-compile`, and `laplan-synthesis` under `--no-default-features`. Filesystem-dependent features belong to the extension. Workspace file contents are passed from the JS side.
+Saving `.lex` reruns diagnostics. Saving `view/graph/*.lex` reloads meta views.
 
-### TypeScript flow
+## Package Artifact
 
-```mermaid
-flowchart LR
-    vsc[VSCode onDidChange] --> ext[extension.ts]
-    ext --> collect[collect workspace files]
-    collect --> wasm[WASM diagnose_workspace]
-    wasm --> diag[diagnostics.ts]
-    diag --> vscode[VSCode diagnostics]
-    diag --> panel[PetriNetPanel]
-    panel --> webview[webview HTML]
-```
+`npm run package` uses `vsce package --allow-missing-repository --no-dependencies`. This works in the monorepo with workspace links, and the measured artifact size is `248.08 KB` for `laplan-lex-0.2.0.vsix`.
 
-### Petri net webview
+## Manual Regression
 
-- `graph/types.ts`: rendering-library-agnostic data model (`PetriNetGraph`, `GraphTransition`, ...)
-- `graph/petriNetPanel.ts`: WebviewPanel management. Cytoscape.js is bundled. Protected by CSP nonce.
-- `webview/renderer.ts`, `cytoscapeRenderer.ts`: Renderer interface and reference implementation
-- Actual rendering is handled by inline JS inside `petriNetPanel.ts`
-
-### Swapping in WebGPU
-
-`webview/renderer.ts` defines a Renderer interface. The Cytoscape implementation is one concrete instance. The structure supports substituting a WebGPU Renderer.
-
-## Features
-
-| Feature | Implementation |
-|---|---|
-| Syntax highlighting | `syntaxes/` (TextMate) |
-| Diagnostics | `diagnose_workspace` → VSCode Diagnostic Provider |
-| Semantic tokens | Via WASM API |
-| Inlay hints | Type annotations inserted via WASM API |
-| Petri net visualization | `PetriNetPanel` + Cytoscape |
-| Commands: `laplan.showGraph`, etc. | `extension.ts` |
-
-## Installing the `.vsix`
-
-```
-code --install-extension extension/laplan-lex-0.2.0.vsix
-```
-
-The version is in sync with `version` in `package.json`.
-
-## Troubleshooting
-
-| Symptom | Fix |
-|---|---|
-| `wasm-pkg` is missing | Run `npm run build:wasm` |
-| Extension does not load | Reinstall the `.vsix` and restart VSCode |
-| Diagnostics do not update | Run `Developer: Reload Window` in VSCode |
-| Petri net does not display | Check the webview console via `Help > Toggle Developer Tools` |
-
-## Related
-
-- [architecture/solver.md](../architecture/solver.md): internals of diagnose and lint
-- [architecture/synthesis.md](../architecture/synthesis.md): WASM binding generation
+1. `cd extension && npm run package`
+2. `code --install-extension laplan-lex-0.2.0.vsix`
+3. Open a `.lex` file and confirm syntax highlighting, diagnostics, semantic tokens, and inlay hints
+4. Run `Laplan: Show Petri Net` and confirm the Vue webview appears
+5. Move a node and confirm `view/graph/<nsid>.lex` updates
+6. Add and remove wiring or missing-fact stubs and confirm text edits reach the base `.lex`

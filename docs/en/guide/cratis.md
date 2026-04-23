@@ -6,14 +6,14 @@ A cratis is laplan's package and workspace declaration. It groups `.lex` files a
 
 ```kdl
 cratis "encrypted-dm" version=1 {
-    provides {
-        procedure "com.example.dm.send"
-        procedure "com.example.dm.receive"
-    }
-    requires {
-        axiom "str.concat"
-        axiom "crypto.encrypt"
-    }
+  provides {
+    procedure "com.example.dm.send"
+    procedure "com.example.dm.receive"
+  }
+  requires {
+    axiom "str.concat"
+    axiom "crypto.encrypt"
+  }
 }
 ```
 
@@ -29,20 +29,20 @@ A cratis with `members` is a workspace. It groups multiple child cratis and sepa
 
 ```kdl
 cratis "my-app" {
-    members {
-        "atproto-client" path="client/cratis.lex"
-        "atproto-server" path="server/cratis.lex"
+  members {
+    "atproto-client" path="client/cratis.lex"
+    "atproto-server" path="server/cratis.lex"
+  }
+  faces {
+    face "client" {
+      emit "atproto-client"
+      axiom "atproto-server"
     }
-    faces {
-        face "client" {
-            emit "atproto-client"
-            axiom "atproto-server"
-        }
-        face "server" {
-            emit "atproto-server"
-            axiom "atproto-client"
-        }
+    face "server" {
+      emit "atproto-server"
+      axiom "atproto-client"
     }
+  }
 }
 ```
 
@@ -62,13 +62,15 @@ These three source forms are supported.
 
 ```kdl
 faces {
-    face "client" {
-        emit "cratis-a"
-        emit "cratis-b"
-        axiom "cratis-c"
-        bind "typescript"
-        boundary { from "cratis-a" to "cratis-c" via "http" }
+  face "client" {
+    emit "cratis-a"
+    emit "cratis-b"
+    axiom "cratis-c"
+    bind "typescript"
+    boundary {
+      "com.example.account.create" emit="server" message="CreateAccountRequest"
     }
+  }
 }
 ```
 
@@ -77,10 +79,55 @@ faces {
 | `emit` | Target cratis to generate from this face |
 | `axiom` | Cratis treated as axiom (given fact) in this face |
 | `capability` | Initial capability for this face. The workspace-mode solver expands it into the initial marking |
+| `trust` | Trust level for this face. Defaults to `full` |
 | `bind` | Binding language for this face (optional) |
 | `boundary` | Cross-cratis boundary communication spec |
 
-`client { ... }` and `server { ... }` are shorthand for `face "client" { ... }` and `face "server" { ... }`.
+Face names are open-ended in the new `face "name" { ... }` form. The current constraints are:
+
+| Rule | Meaning |
+|---|---|
+| Non-empty | `face "" { ... }` is invalid |
+| Allowed characters | ASCII letters, digits, `-`, and `_` only |
+| No duplicates | The same face name may appear only once in a cratis |
+
+Reserved names include `client`, `server`, `pds`, `appview`, and `bgs`. These names may gain special runtime meaning, but the parse layer accepts them the same way it accepts any other valid face name.
+
+`client { ... }` and `server { ... }` are shorthand for `face "client" { ... }` and `face "server" { ... }`. This legacy shorthand is limited to client and server. Any arbitrary face name must use the explicit `faces { face "browser" { ... } }` form.
+
+### trust
+
+Adding `trust="lexicon-only"` turns a face into a stub face.
+
+```kdl
+face "bsky-official-pds" trust="lexicon-only" {
+  axiom "com.atproto"
+  capability "pds-endpoint"
+}
+```
+
+- `full` (default): normal laplan-aware face. The solver follows rules and internal paths
+- `lexicon-only`: the solver does not inspect internal paths and assumes the face unconditionally produces the endpoint outputs declared by the Lexicon
+- `message` mismatches against a stub face are downgraded to warnings
+- synthesis emits a response validator API for stub-facing endpoints. If the runtime body does not match the Lexicon output, it returns `MismatchError`
+
+## boundary
+
+The `boundary` block declares which endpoints cross a face boundary and which face they target.
+
+```kdl
+boundary {
+  "com.example.account.create" emit="server" message="CreateAccountRequest"
+  "com.example.account.create" emit="client" message="CreateAccountResponse"
+}
+```
+
+| Attribute | Meaning |
+|---|---|
+| `emit` | Target face name. Binary targets such as `wasm` are also allowed |
+| `message` | Type name carried across that boundary (optional) |
+
+Rules without `message` keep the previous emit-only behavior. When `message` is present, workspace solve runs a static validation pass first. Unknown type names and duplicate messages for the same pattern still abort solve. Request/response mismatches remain errors for normal faces, but are downgraded to warnings when the peer is a stub face.
 
 ## Classification criteria
 

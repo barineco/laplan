@@ -44,7 +44,16 @@ Lex₁ → Lex₂ の lowering と IR → TransitionTable の変換は独立し�
 
 ### Lex₁ パスと Lex₂ パスの並存
 
-通常のコンパイラでは高水準 IR → 低水準 IR → ターゲットの一本道ですが、laplan は Lex₁ から直接出力する言語 (Haskell, OCaml, Gleam, Elixir) と、Lex₂ に降格してから出力する言語 (残り 17 言語 + WASM) を使い分けます。`has_functional_templates()` が mapping.lex の `functional {}` セクションの有無で自動分岐します。詳細は [synthesis.md](synthesis.md) の「Lex₁ パス vs Lex₂ パス」節。
+通常のコンパイラでは高水準 IR から低水準 IR を経てターゲットに至る一本道ですが、laplan は Lex₁ から直接出力する言語と、Lex₂ に降格してから出力する言語を使い分けます。分岐判定は `has_functional_templates()` (`compiler/synthesis/src/backends/generic.rs`) が mapping.lex の `functional {}` セクションの有無で行います。
+
+21 言語の所属は以下の通りです。
+
+| 分類 | 言語 | 備考 |
+|---|---|---|
+| Lex₁ 直接 emit | haskell, ocaml, gleam, elixir | mapping.lex に `functional {}` を持つ。4 言語 |
+| Lex₂ 経由 emit | rust, cpp, zig, java, kotlin, csharp, d, go, swift, javascript, typescript, dart, php, python, ruby, lua, clojure | `functional {}` を持たず lowering で降格 (clojure は Lisp 系だが Lex₂ 経由、17 言語) |
+
+合計 21 言語。WASM は Lex₂ から直接バイナリを生成する経路で、21 言語の内訳とは独立しており、Lex₂ パスを共有します。詳細な振り分け実装は [synthesis.md](synthesis.md) の「Lex₁ パス vs Lex₂ パス」節で扱います。
 
 ## 主要な型
 
@@ -114,7 +123,7 @@ pub enum FnExpr {
 
 ### resolver.lex: FnExpr の KDL 記述
 
-`axiom/resolver.lex` は FnExpr を KDL で直接記述する .lex バリアントです。runtime resolver の 7 関数 (loadRecipes, dispatchRecipeStep, checkNeeds, classifyCandidate, executeRecipe, resolve, fetchGoal) を宣言的に定義し、source of truth として機能します。
+`axiom/resolver.lex` は FnExpr を KDL で直接記述する .lex バリアントです。runtime resolver の 9 関数 (loadRecipes, dispatchRecipeStep, checkNeeds, classifyCandidate, failGoalUnreachable, resolveFromCandidates, executeRecipe, resolve, fetchGoal) を宣言的に定義し、source of truth として機能します。
 
 `parse_resolver_lex()` (`fn_expr.rs`) が KDL → `Vec<FnDef>` の semantic interpreter を提供します。KDL パーサ ([neco-kdl](https://github.com/barineco/neco-crates/tree/main/neco-kdl)) の上に FnExpr variant へのマッピング層を載せた構造で、標準の KDL 構文のみを使用します。
 
@@ -122,39 +131,52 @@ KDL ノード名は `functional {}` テンプレートのキー名と対応し�
 
 | KDL ノード | FnExpr variant | 子ノード |
 |---|---|---|
-| `fn "name" { ... }` | `FnDef` | `params`, `return-type`, `body` |
-| `var "x"` | `Var` | - |
+| `fn "name" { ... }` | `FnDef` | `param` (直接子), `return-type`, body = 残りの唯一の expr |
+| `var "local.x"` / `$local.x` | `Var` | - (`$` shorthand は `var` の省略記法) |
 | `string "..."` | `StringLit` | - |
 | `int 42` | `IntLit` | - |
 | `bool #true` | `BoolLit` | - |
 | `null-literal` | `Null` | - |
-| `app "f" { arg { ... } }` | `App` | `arg` (複数) |
-| `lambda { params { ... } body { ... } }` | `Lambda` | `params`, `body` |
-| `fold { fn { ... } init { ... } collection { ... } }` | `Fold` | `fn`, `init`, `collection` |
-| `recurse { ... }` | `Recurse` | `base-case`, `base-value`, `step`, `state` |
-| `filter { predicate { ... } collection { ... } }` | `Filter` | `predicate`, `collection` |
-| `map-transform { transform { ... } collection { ... } }` | `MapTransform` | `transform`, `collection` |
-| `let-in { binding "x" type="T" { value { ... } } body { ... } }` | `LetIn` | `binding` (複数), `body` |
-| `case { target { ... } branch constructor="C" { ... } }` | `Case` | `target`, `branch` (複数) |
-| `field "name" { target { ... } }` | `FieldAccess` | `target` |
-| `construct "C" { field "f" { value { ... } } }` | `Construct` | `field` (複数) |
-| `list { item { ... } }` | `ListLit` | `item` (複数) |
-| `tuple { item { ... } }` | `Tuple` | `item` (複数) |
-| `map-from-list { inner { ... } }` | `MapFromList` | `inner` |
-| `map-lookup { target { ... } key { ... } }` | `MapLookup` | `target`, `key` |
-| `map-member { target { ... } key { ... } }` | `MapMember` | `target`, `key` |
-| `is-nothing { value { ... } }` | `IsNothing` | `value` |
-| `from-maybe { default { ... } value { ... } }` | `FromMaybe` | `default`, `value` |
-| `not { value { ... } }` | `Not` | `value` |
-| `binary op="+" { left { ... } right { ... } }` | `BinaryOp` | `left`, `right` |
+| `app "f" { expr* }` | `App` | positional children = args |
+| `lambda { param* expr }` | `Lambda` | `param` (直接子), body = 非 param の唯一の子 |
+| `fold { expr expr expr }` | `Fold` | 3 positional: fn, init, collection |
+| `recurse { expr expr expr binding* }` | `Recurse` | 3 positional (base-case, base-value, step) + `binding` children = state |
+| `filter { expr expr }` | `Filter` | 2 positional: predicate, collection |
+| `map-transform { expr expr }` | `MapTransform` | 2 positional: transform, collection |
+| `let-in { binding* expr }` | `LetIn` | `binding` children (value は直接子) + 非 binding = body |
+| `case { expr branch* }` | `Case` | 非 branch child = target + `branch` children |
+| `field "name" { expr }` | `FieldAccess` | 唯一の子 = target |
+| `construct "C" { field "f" { expr } }` | `Construct` | `field` children (value は直接子) |
+| `list { expr* }` | `ListLit` | positional children |
+| `tuple { expr* }` | `Tuple` | positional children |
+| `map-from-list { expr }` | `MapFromList` | 唯一の子 |
+| `map-lookup { expr expr }` | `MapLookup` | 2 positional: target, key |
+| `map-member { expr expr }` | `MapMember` | 2 positional: target, key |
+| `is-nothing { expr }` | `IsNothing` | 唯一の子 |
+| `from-maybe { expr expr }` | `FromMaybe` | 2 positional: default, value |
+| `not { expr }` | `Not` | 唯一の子 |
+| `binary op="+" { expr expr }` | `BinaryOp` | 2 positional: left, right |
 | `error-raise "msg"` | `ErrorRaise` | - |
-| `fst { value { ... } }` | `Fst` | `value` |
-| `snd { value { ... } }` | `Snd` | `value` |
-| `head { value { ... } }` | `Head` | `value` |
-| `null-check { value { ... } }` | `NullCheck` | `value` |
-| `concat { left { ... } right { ... } }` | `Concat` | `left`, `right` |
+| `fst { expr }` | `Fst` | 唯一の子 |
+| `snd { expr }` | `Snd` | 唯一の子 |
+| `head { expr }` | `Head` | 唯一の子 |
+| `null-check { expr }` | `NullCheck` | 唯一の子 |
+| `concat { expr expr }` | `Concat` | 2 positional: left, right |
 
 case の `branch` はパターンを property で指定します: `constructor="Name"` (バインド変数は子の `bind "var"`), `tuple=#true`, `wildcard=#true`。
+
+### 識別子の NSID namespace
+
+FnExpr KDL の string 識別子には由来層を示す prefix が付きます:
+
+| prefix | 意味 | 例 |
+|---|---|---|
+| `local.` | 関数パラメータ / let binding | `$local.goal` |
+| `lang.` | 言語 primitive / runtime utility | `app "lang.mapGetRequired"` |
+| `cli.` | CLI runtime primitive | `app "cli.call"`, `$cli.ctx` |
+| (なし) | 同一ファイル内定義の自己参照 | `app "resolve"` |
+
+emit 時に prefix は除去され、言語固有コードには base name のみが出力されます。
 
 パース結果は既存の lowering (`fn_to_lex2`) と template_engine_fn (`emit_fn_expr`) にそのまま流れ、全 21 言語 + Lex₁ 4 言語に resolver コードを生成します。`runtime_program_fn.rs` は `include_str!("../../../axiom/resolver.lex")` で resolver.lex を取り込み、`functional_resolve_program()` として `Vec<FnDef>` を返します。
 
@@ -164,7 +186,7 @@ case の `branch` はパターンを property で指定します: `constructor="
 
 ```rust
 pub enum Stmt {
-    Let { name, ty, value },
+    Let { pattern, ty, value },
     Mut { name, ty, value },
     Assign { target, value },
     If { cond, then_body, else_body },
@@ -174,6 +196,9 @@ pub enum Stmt {
     Continue,
     StoreOp(String, Expr, Expr),
     AtomicStore { mnemonic, addr, value },
+    Match { target: Expr, arms: Vec<(Pattern, Vec<Stmt>)> },
+    Expr(Expr),
+    Raw(String),
 }
 
 pub enum Expr {
@@ -184,10 +209,59 @@ pub enum Expr {
     Call, Construct,
     IsNull, Not, First, ErrorRaise,
     AtomicLoad, AtomicRmwAdd, AtomicWait, // ...
+    Match { target: Box<Expr>, arms: Vec<(Pattern, Expr)> },
+    MethodChain { receiver: Box<Expr>, calls: Vec<(String, Vec<Expr>)> },
+    IfLetTest { pattern: Box<Pattern>, rhs: Box<Expr> },
+    IfElse { cond: Box<Expr>, then_body: Vec<Stmt>, else_body: Vec<Stmt> },
+    Raw(String),
 }
 ```
 
+追加 variant の役割:
+
+| variant | 役割 |
+|---|---|
+| `Stmt::Let` | `let <pattern>: <ty> = <value>;`。LHS に `Pattern` を取るため `let x = v;` の単純束縛と `let StructName { f1, f2 } = v;` の destructuring let を同一経路で扱う |
+| `Stmt::Match` | `match <target> { <pattern> => <body>, ... }` 形式の文。各 arm は `(Pattern, Vec<Stmt>)` で、単一 expression arm は `Stmt::Return` 等で wrap した `Vec<Stmt>` として保持 |
+| `Stmt::Expr(Expr)` | statement 位置の expression (method-call-stmt / try-stmt / macro-call-stmt)。`{expr};` で emit |
+| `Stmt::Raw(String)` | 構造化に落とせない statement を verbatim で保持する fallback。逆変換 artifact に残ることで未対応箇所を可視化 |
+| `Expr::Match` | expression 位置の match。arm body は単一 `Expr`、block の場合は最終式を使うか `Expr::Raw` に fallback |
+| `Expr::MethodChain` | `receiver.call1(args1).call2(args2)...` 形式。iterator idiom 認識の分析対象になる |
+| `Expr::IfLetTest` | `if let <pattern> = <rhs>` の条件部分。`Stmt::If { cond: Expr::IfLetTest { .. }, .. }` の形で使う |
+| `Expr::IfElse` | expression 位置の if-else (`let x = if cond { 1 } else { 2 };` 等)。block body は `Vec<Stmt>` で保持し、statement 位置の `Stmt::If` とは independent |
+| `Expr::Raw(String)` | 構造化に落とせない expression の verbatim fallback。`await` / `unsafe { ... }` / macro invocation 等が落ちる |
+
 `RuntimeFn` は Lex₂ の関数定義で、`name`, `params`, `return_type`, `body: Vec<Stmt>` を持ちます。
+
+### Pattern
+
+match arm および `if let` の LHS を表す構造化 pattern です。Lex₂ 側の match 構造が保持し、Lex₁ 側の Case branch とは独立した型です。
+
+```rust
+pub enum Pattern {
+    Wildcard,
+    Binding { name: String, mutable: bool },
+    VariantUnit(String),
+    VariantTuple { variant: String, binds: Vec<Pattern> },
+    VariantStruct { variant: String, fields: Vec<(String, Pattern)> },
+    Struct { name: String, fields: Vec<(String, Pattern)> },
+    Literal(String),
+    Guarded { pattern: Box<Pattern>, guard: Box<Expr> },
+    Raw(String),
+}
+```
+
+| variant | 対応する構文 |
+|---|---|
+| `Wildcard` | `_` |
+| `Binding` | `x` / `mut x` |
+| `VariantUnit` | `None` / `Ok(_)` 相当 (binds なし) |
+| `VariantTuple` | `Some(x)` / `Ok(value)` / `Err(e)` |
+| `VariantStruct` | match arm での sum 型 variant 破壊 (`Some(Point { x, y })` の `Point { x, y }` 部分等) |
+| `Struct` | product 型 struct そのものの destructuring (`let StructName { f1, f2 } = v;` の LHS 等)。`VariantStruct` とは文脈が異なる |
+| `Literal` | `0` / `"str"` / `true` 等のリテラル |
+| `Guarded` | `<pattern> if <guard>` 形式の match arm guard |
+| `Raw(String)` | 構造化に落とせない pattern の verbatim fallback |
 
 ## lowering: Lex₁ → Lex₂
 
@@ -224,6 +298,36 @@ flowchart LR
 
 Lex₂ パスは Lex₁ IR からの自動降格のみで構成されます。
 
+## inverse: 各言語 → Lex₂ → Lex₁
+
+forward の降格 (lowering) に対となる経路として、各言語のソースコードを Lex₂ に読み戻し、可能な範囲で Lex₁ に昇格 (lift) させる inverse パイプラインがあります。roundtrip 検証や、既存コードベースの取り込みに利用します。
+
+```mermaid
+flowchart LR
+    src["各言語の<br/>ソースコード"]
+    pm["pattern match<br/>(ast_inverse/engine.rs)"]
+    stmts["Vec&lt;Stmt&gt;<br/>Lex₂"]
+    rl["reverse_lower<br/>(reverse_lower.rs)"]
+    lex1["FnBody::Algebraic(FnExpr)<br/>Lex₁"]
+    residual["FnBody::Procedural(Vec&lt;Stmt&gt;)<br/>Lex₂ 残余"]
+
+    src -->|"consumed: usize<br/>走査消費"| pm
+    pm --> stmts
+    stmts --> rl
+    rl -->|"lowering パターンに一致"| lex1
+    rl -.->|"不一致で fallback"| residual
+```
+
+各段の責務は以下の通りです。
+
+| 段 | 関数 | 役割 |
+|---|---|---|
+| pattern match | `ast_inverse::engine` の `PatternNode` + `MatchResult { consumed, captures, ast_matches }` | ソース文字列を `consumed` バイト単位で走査し、mapping.lex の `pattern` template から派生したパターンに照合する |
+| lift | `reverse_lower::reverse_lower` | `Vec<Stmt>` 全体を `FnBody` に変換する total function。`lowering::fn_to_lex2` のパターンと一対一で対応した認識器 (`recognize_body` → `recognize_fold` / `recognize_filter` / `recognize_let_in` など) と `lift_expr` による式の再構築を経て、一致すれば `FnBody::Algebraic(FnExpr)` を、一致しなければ `FnBody::Procedural(Vec<Stmt>)` を返す |
+| 可視化 fallback | `Stmt::Raw(String)` / `Expr::Raw(String)` | pattern match 段で構造化に至らなかった断片を verbatim で保持する。未対応箇所を silent に隠さずに明示するための仕組み |
+
+`reverse_lower` は `lowering::fn_to_lex2` の forward パターンと一対一で対応しており、laplan 自身が emit した `resolver.lex` の 9 関数はすべて Algebraic に復元されます。既存の言語ソースを読み戻す場合、builder 風の構造や method 連鎖など lowering パターンの外側にあるコードは `FnBody::Procedural` として Lex₂ のまま残り、その残余には `Stmt::Raw` / `Expr::Raw` が含まれうるため、未対応箇所の所在がそのまま可視化されます。
+
 ## module / cratis の IR 表現
 
 `module.rs` の `Module` がファイル単位の集約。`LibConfig` (`lib_config.rs`) が cratis を表現し、`members`, `faces`, `provides`, `requires` を持ちます。
@@ -239,6 +343,21 @@ pub struct CratisConfig {
 ```
 
 cratis は単体パッケージとワークスペースを兼ねます (members の有無で判定)。詳細は [guide/cratis.md](../guide/cratis.md) 。
+
+## 消費 (consume) の 2 系統
+
+laplan では「消費」という語が 2 つの異なる文脈で現れます。混同すると設計判断を誤るので、明示的に区別します。
+
+| 系統 | 所在 | 意味 | 関連概念 |
+|---|---|---|---|
+| Petri net の `consumes` | solver / rule 宣言 | transition の発火で marking から token を除去する | `produces` / `requires` / marking |
+| pattern match の `consumed` | inverse パイプライン (engine.rs) | pattern match がソース文字列を走査して消費したバイト数 | cursor / captures / Lex₂ 残余 |
+
+Petri net の `consumes` は solver の探索モデルに属します。rule が発火できるかの判定 (`requires` / `consumes`) と、発火後の marking 遷移を定義します。詳細は [solver.md](solver.md) を参照。
+
+pattern match の `consumed` は inverse パイプラインの内部状態です。matcher が source のどこまで読み取ったかを示し、次のパターンを試行する cursor 位置を決めます。構造化できなかった断片はこの消費を経た後も `Stmt::Raw` / `Expr::Raw` として Lex₂ 側に残ります。これが「Lex₁ に畳み込めなかった残余が Lex₂ に留まる」の実体です。詳細は本ドキュメントの「inverse: 各言語 → Lex₂ → Lex₁」節を参照。
+
+両者は同じ語を使いますが、対象が solver の探索空間か inverse の文字列走査かで完全に別の層を扱います。rule.lex の `consumes` と inverse の `consumed` は同一視しないこと。
 
 ## feature gate
 

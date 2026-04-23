@@ -150,6 +150,39 @@ impl TransitionTable {
 
 `search` は最短経路を返し、`search_all` は `max_depth` までの全経路、`search_dry_run` は副作用を発生させずに経路のみ確認します。
 
+## N-face joint solve
+
+workspace モードでは複数 face を跨いだ統合 solver が動作します。
+
+`JointTransitionTable` が各 face の `TransitionTable` を結合し、boundary rule に基づいて cross-boundary transition を生成します。
+
+```
+per-face TransitionTable (face ごとに独立構築)
+   ↓ boundary rule でフィルタ
+JointTransitionTable (cross-boundary transition を追加)
+   ↓
+JointMarking (face → Marking の写像) 上で BFS
+```
+
+`JointMarking` は `BTreeMap<FaceId, Marking>` で、各 face の現在 marking を独立に管理します。cross-boundary transition が発火すると、呼び出し元 face の marking が更新されます。peer face (呼び出し先) の requires を呼び出し元の初期 capability として逆伝播します。
+
+### 構築 API
+
+```rust
+// 単一 face から構築 (workspace モード以外)
+JointTransitionTable::from_single_face(face, table)
+
+// 複数 face から構築 (workspace モード)
+JointTransitionTable::from_per_face(per_face, boundary_rules_by_face)
+
+// trust 付き (stub face を含む場合)
+JointTransitionTable::from_per_face_with_trust(per_face, boundary_rules_by_face, face_trust)
+```
+
+### 旧 single-face path との関係
+
+旧来の `TransitionTable` 単体を使った solve path は廃止され、`JointTransitionTable` に一本化されました。`from_single_face` が旧来の挙動を保持します。
+
 ## SolveOutput
 
 ```rust
@@ -171,7 +204,7 @@ pub enum SolveOutput {
 | `PreflightRequired` | axiom 境界を越えるために preflight 必要 |
 | `AmbiguousAxiomCrossing` | 複数候補があり一意決定不能 |
 | `NeedsUserAction` | ユーザー入力 (input / selected) が不足 |
-| `Boundary` | client / server 境界をまたぐ要求 |
+| `Boundary` | face 境界をまたぐ要求 |
 | `InvalidGoalSpec` | ゴール指定の構文エラー |
 
 ## 枝刈り
@@ -183,7 +216,7 @@ Lex₂ の構造制約は、solver が探索する Lex₁ 空間を絞り込み�
 | `inverse` | 逆射を持つ経路の片方を省略 |
 | `func.law` | 等価な経路を同一視。代数法則による対称性削減 |
 | `func.family` | product / vectorize の成分展開で重複経路を統合 |
-| `boundary` | client / server の分離で探索空間を分割 |
+| `boundary` | face 間の分離で探索空間を分割 |
 | `invariant` | count 整合性等の不変量で違反経路を排除 |
 
 ## 診断 (Layer 2)
@@ -200,6 +233,36 @@ Lex₂ の構造制約は、solver が探索する Lex₁ 空間を絞り込み�
 | `LawTargetNotFound` | law が参照する target rule が未定義 |
 
 `diagnose_convergent_paths` は計算量が大きいため `diagnose` とは別に呼び出します。
+
+### EndpointDiagnosis
+
+cross-boundary endpoint ごとの事前検証結果を表す型です。`diagnose_cross_boundary(face)` が face 内の全 cross-boundary transition を診断し、`Vec<EndpointDiagnosis>` を返します。
+
+```rust
+pub struct EndpointDiagnosis {
+    pub nsid: String,
+    pub kind: EndpointKind,
+    pub prerequisites: Vec<String>,
+}
+
+pub enum EndpointKind {
+    Matched,
+    MultiPath { alternatives: Vec<Vec<String>> },
+    MissingFact,
+    PrunedByBoundary { boundary: BoundaryKind },
+    PrunedByRefinement { rule_name: String, reason: String },
+}
+```
+
+| variant | 意味 |
+|---|---|
+| `Matched` | 一意の経路を発見。`prerequisites` に事前発火が必要な rule 列を格納 |
+| `MultiPath` | 複数経路が存在。`alternatives` に候補を列挙 |
+| `MissingFact` | 必要な fact が取得できず経路なし |
+| `PrunedByBoundary` | boundary 制約により枝刈り |
+| `PrunedByRefinement` | refinement 制約により枝刈り |
+
+この診断結果は synthesis に受け渡され、emit 分岐の根拠になります。`Matched` は prerequisite guard 付き emit、`MultiPath` は alternative ごとに dispatch 関数を複製、`MissingFact` / `PrunedBy*` は Rust では skip、TypeScript では `never` 型として出力されます。
 
 ## Layer 0 lint
 

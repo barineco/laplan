@@ -20,9 +20,9 @@
 
 ```kdl
 family "Complex" = product("Numeric", 2) {
-    signature "mul" { in { (Self)a; (Self)b } out { (Self)result } }
-    signature "abs" { in { (Self)z } out { (f64)result } }
-    signature "conjugate" { in { (Self)z } out { (Self)result } }
+  signature "mul" { in { (Self)a; (Self)b } out { (Self)result } }
+  signature "abs" { in { (Self)z } out { (f64)result } }
+  signature "conjugate" { in { (Self)z } out { (Self)result } }
 }
 ```
 
@@ -65,6 +65,6 @@ Lex₂ 層の unsafe recursive (via recursive) はラベルのみで solver 範�
 
 ## 依存関係
 
-- 基底として `i32` / `i64` / `f32` / `f64` axiom に依存 ([axiom-numeric](axiom-numeric.md))
+- 基底として `i32` / `i64` / `f32` / `f64` axiom に依存 ([axiom-numeric](axiom/numeric.md))
 - [neco-galois](https://github.com/barineco/neco-crates/tree/main/neco-galois) の GF(p) 演算と接続 (実装は morph.lex 経由)
-- product / vectorize の導出は [axiom-category](axiom-category.md) の `product.lex` と連携
+- product / vectorize の導出は [axiom-category](axiom/category.md) の `product.lex` と連携

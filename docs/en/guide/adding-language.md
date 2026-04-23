@@ -26,43 +26,43 @@ allow-keyword-fields #false
 identifier-escape prefix="r#"
 
 syntax {
-    product {
-        visibility "pub"
-        attribute "#[derive(Debug, Clone, PartialEq)]"
-        keyword "struct"
-        open "{"
-        close "}"
-        field-format "    pub {name}: {type},"
-    }
-    sum { /* ... */ }
-    alias { format "pub type {Name} = {type};" }
-    import-format "use crate::{gen}::{path::}::{Name};"
+  product {
+    visibility "pub"
+    attribute "#[derive(Debug, Clone, PartialEq)]"
+    keyword "struct"
+    open "{"
+    close "}"
+    field-format "    pub {name}: {type},"
+  }
+  sum { /* ... */ }
+  alias { format "pub type {Name} = {type};" }
+  import-format "use crate::{gen}::{path::}::{Name};"
 }
 
 control {
-    if-open "if {cond} {"
-    else-open "} else {"
-    if-close "}"
-    for-open "for {var} in &{collection} {"
-    for-close "}"
-    fn-open "pub fn {name}({params}) -> {return_type} {"
-    fn-close "}"
-    module-open ""
-    module-close ""
+  if-open "if {cond} {"
+  else-open "} else {"
+  if-close "}"
+  for-open "for {var} in &{collection} {"
+  for-close "}"
+  fn-open "pub fn {name}({params}) -> {return_type} {"
+  fn-close "}"
+  module-open ""
+  module-close ""
 }
 
 variable {
-    binding "let {name} = {value};"
-    mutable-binding "let mut {name} = {value}.to_owned();"
-    assign "{target} = {value};"
-    return "return {value};"
+  binding "let {name} = {value};"
+  mutable-binding "let mut {name} = {value}.to_owned();"
+  assign "{target} = {value};"
+  return "return {value};"
 }
 
 handler {
-    handler-open "pub trait {HandlerName}: Send + Sync {"
-    handler-close "}"
-    method "    fn handle({MethodParams}) -> {ReturnType};"
-    // ...
+  handler-open "pub trait {HandlerName}: Send + Sync {"
+  handler-close "}"
+  method "    fn handle({MethodParams}) -> {ReturnType};"
+  // ...
 }
 ```
 
@@ -104,11 +104,11 @@ Declares how axiom morphisms (e.g. `i32.add`) are implemented in the language.
 
 ```kdl
 morph "i32.add" {
-    inline "({a} + {b})"
+  inline "({a} + {b})"
 }
 
 morph "str.concat" {
-    inline "format!(\"{}{}\", {a}, {b})"
+  inline "format!(\"{}{}\", {a}, {b})"
 }
 ```
 
@@ -124,10 +124,10 @@ For languages that use the Lex₁ path (Haskell, OCaml, Gleam, Elixir, etc.), ad
 
 ```kdl
 functional {
-    let-in "let {bindings} in {body}"
-    match "case {target} of { {branches} }"
-    lambda "\\{params} -> {body}"
-    // ...
+  let-in "let {bindings} in {body}"
+  match "case {target} of { {branches} }"
+  lambda "\\{params} -> {body}"
+  // ...
 }
 ```
 
@@ -179,6 +179,5 @@ The following targets require additional code outside `GenericBackend`.
 | WGSL shader | `compiler/synthesis/src/wgsl_emit.rs` |
 | Python binding | `compiler/synthesis/src/bind_python.rs` |
 | TypeScript binding | `compiler/synthesis/src/bind_typescript.rs` |
-| Server implementation (atproto-server feature) | `compiler/synthesis/src/bind_server.rs`, `server_output.rs` |
 
 These are emit-layer concerns, not language templates. See [architecture/synthesis.md](../architecture/synthesis.md) for details.

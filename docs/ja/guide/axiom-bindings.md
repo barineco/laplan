@@ -11,10 +11,10 @@ axiom は型と操作のインターフェースを宣言しますが、実装�
 ```kdl
 // axiom/target/lang/python/mapping.lex
 bindings {
-    "signature.verify.ES256K" package="cryptography" version="41.0" \
-        import="cryptography.hazmat.primitives.asymmetric.ec.ECDSA"
-    "signature.verify.P-256"  package="cryptography" version="41.0" \
-        import="cryptography.hazmat.primitives.asymmetric.ec.ECDSA"
+  "signature.verify.ES256K" package="cryptography" version="41.0" \
+    import="cryptography.hazmat.primitives.asymmetric.ec.ECDSA"
+  "signature.verify.P-256"  package="cryptography" version="41.0" \
+    import="cryptography.hazmat.primitives.asymmetric.ec.ECDSA"
 }
 ```
 
@@ -45,3 +45,39 @@ synthesis はこの宣言を参照して、生成コードのインポート文�
 ## axiom のインターフェースは共通
 
 差し替えで変わるのは実装のみです。axiom が宣言する入出力の型 (`data → digest`, `privkey, msg → signature` 等) は全言語で共通であり、solver の経路探索はこの共通インターフェースに対して行われます。言語ごとの実装の違いは synthesis の出力時に解決され、solver には影響しません。
+
+## bindings / package / runtime-base の 3 層連携
+
+`bindings {}` は axiom の実装接続だけでは完結しません。3 つの mapping.lex セクションが連携して `.lex` → 言語コードの接続経路を構成します。
+
+| セクション | 責務 | 例 (Rust) |
+|---|---|---|
+| `bindings {}` | axiom の射 (`xrpc.call` / `crypto.hash` 等) を外部 crate / 関数に接続 | `"signature.verify.ES256K" crate="k256" version="0.13" fn="k256::ecdsa::VerifyingKey::verify"` |
+| `package {}` | 生成パッケージの manifest (Cargo.toml / package.json / requirements.txt 等) テンプレート。必要 dependency の宣言 | `[dependencies] k256 = "0.13"` を `manifest-template` 内で宣言 |
+| `runtime-base {}` | 生成コード側の runtime primitive (型定義 / decode helper / error wrapper 等) を埋め込む | `UnknownValue` / `Bytes` / `BlobRef` 型の Rust 実装を embed |
+
+`bindings` で指名した関数がコンパイル時に解決されるよう、`package` の manifest で dependency を追加し、`runtime-base` で共通型を揃える、という 3 層連携です。
+
+## laplan スコープ外の接続先宣言禁止
+
+laplan 本体の `bindings {}` / `package {}` / `runtime-base {}` は **汎用な外部ライブラリ** (crypto / json / xrpc 等) のみを接続対象とします。特定のアプリケーション固有のサーバ実装 (PDS サーバ、AppView、BGS 等) を laplan 本体で hardcode することは禁止です。
+
+理由:
+
+- laplan は汎用コンパイラ基盤で、消費者プロジェクトから呼び出して使われる
+- 特定アプリの接続先を laplan 本体に書くと、他の消費者プロジェクトが巻き込まれる
+- アプリ固有の接続は消費者側の `cratis.lex` と mapping overlay で宣言するのが正攻法
+
+許容される laplan 本体の接続先の例:
+
+- `k256` / `p256` / `sha2` / `argon2` など **汎用 crypto 実装**
+- `serde` / `serde_json` / `neco-json` / `neco-cbor` など **汎用シリアライゼーション**
+- `reqwest` / `hyper` / `ureq` など **汎用 HTTP client** (xrpc axiom の Rust 側接続先)
+
+禁止される接続先の例:
+
+- `neco-server` / `neco-appview` など **特定サーバ実装**
+- `bsky-pds` / `mastodon-server` など **特定プラットフォーム固有実装**
+- 特定プロジェクトの名前空間を持つ crate (消費者プロジェクトが使う場合は、消費者側で mapping を overlay する)
+
+消費者プロジェクトで特定の接続先を使いたい場合は、その消費者プロジェクトの `cratis.lex` + workspace 設定で laplan の mapping を extend する (例: neco-atproto が `atproto_xrpc` 固有の binding を上乗せする場合、neco-atproto 側の mapping で宣言)。

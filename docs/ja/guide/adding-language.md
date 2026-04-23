@@ -26,43 +26,43 @@ allow-keyword-fields #false
 identifier-escape prefix="r#"
 
 syntax {
-    product {
-        visibility "pub"
-        attribute "#[derive(Debug, Clone, PartialEq)]"
-        keyword "struct"
-        open "{"
-        close "}"
-        field-format "    pub {name}: {type},"
-    }
-    sum { /* ... */ }
-    alias { format "pub type {Name} = {type};" }
-    import-format "use crate::{gen}::{path::}::{Name};"
+  product {
+    visibility "pub"
+    attribute "#[derive(Debug, Clone, PartialEq)]"
+    keyword "struct"
+    open "{"
+    close "}"
+    field-format "    pub {name}: {type},"
+  }
+  sum { /* ... */ }
+  alias { format "pub type {Name} = {type};" }
+  import-format "use crate::{gen}::{path::}::{Name};"
 }
 
 control {
-    if-open "if {cond} {"
-    else-open "} else {"
-    if-close "}"
-    for-open "for {var} in &{collection} {"
-    for-close "}"
-    fn-open "pub fn {name}({params}) -> {return_type} {"
-    fn-close "}"
-    module-open ""
-    module-close ""
+  if-open "if {cond} {"
+  else-open "} else {"
+  if-close "}"
+  for-open "for {var} in &{collection} {"
+  for-close "}"
+  fn-open "pub fn {name}({params}) -> {return_type} {"
+  fn-close "}"
+  module-open ""
+  module-close ""
 }
 
 variable {
-    binding "let {name} = {value};"
-    mutable-binding "let mut {name} = {value}.to_owned();"
-    assign "{target} = {value};"
-    return "return {value};"
+  binding "let {name} = {value};"
+  mutable-binding "let mut {name} = {value}.to_owned();"
+  assign "{target} = {value};"
+  return "return {value};"
 }
 
 handler {
-    handler-open "pub trait {HandlerName}: Send + Sync {"
-    handler-close "}"
-    method "    fn handle({MethodParams}) -> {ReturnType};"
-    // ...
+  handler-open "pub trait {HandlerName}: Send + Sync {"
+  handler-close "}"
+  method "    fn handle({MethodParams}) -> {ReturnType};"
+  // ...
 }
 ```
 
@@ -84,9 +84,21 @@ handler {
 |---|---|
 | `functional` | Lex₁ パス (関数型言語のみ)。let-in / match / lambda / fold 等 |
 | `lowering` | `fst` / `snd` / `from-maybe` 等の lowering テンプレート |
-| `bindings` | 外部ライブラリマッピング |
+| `bindings` | 外部ライブラリへの axiom 接続 (詳細は [axiom-bindings.md](axiom-bindings.md)) |
+| `package` | 生成パッケージの manifest (Cargo.toml / package.json 等) テンプレート |
+| `runtime-base` | 生成コード側の runtime primitive (型定義 / decode helper 等) 埋め込み |
 | `stub-template` | スタブコード |
 | `effect-*` | effect 型と値の表現 |
+
+### axiom の外部接続は bindings / package / runtime-base の 3 層連携
+
+axiom (Lex₁ の射、例: `crypto.hash` / `xrpc.call`) の実装を言語ごとに差し替える場合、以下の 3 セクションが連携して経路を構成します:
+
+- **`bindings {}`**: axiom の射名を外部関数に接続 (`"crypto.hash" crate="sha2" fn="sha2::Sha256::digest"` 等)
+- **`package {}`**: 生成 manifest の dependency 宣言 (`[dependencies] sha2 = "0.10"` を `manifest-template` 内で)
+- **`runtime-base {}`**: 共通型 / helper を生成コードに embed (`UnknownValue` / `Bytes` / `BlobRef` 等)
+
+詳細は [axiom-bindings.md](axiom-bindings.md) を参照してください。**laplan 本体の接続先は汎用ライブラリのみ** で、特定アプリ固有の接続 (PDS サーバ等) は禁止です (axiom-bindings.md §laplan スコープ外の接続先宣言禁止)。
 
 ### template 変数
 
@@ -104,11 +116,11 @@ axiom の射 (例: `i32.add`) を言語で実装する形を宣言します。
 
 ```kdl
 morph "i32.add" {
-    inline "({a} + {b})"
+  inline "({a} + {b})"
 }
 
 morph "str.concat" {
-    inline "format!(\"{}{}\", {a}, {b})"
+  inline "format!(\"{}{}\", {a}, {b})"
 }
 ```
 
@@ -124,10 +136,10 @@ Haskell / OCaml / Gleam / Elixir のように Lex₁ パスを使う言語では
 
 ```kdl
 functional {
-    let-in "let {bindings} in {body}"
-    match "case {target} of { {branches} }"
-    lambda "\\{params} -> {body}"
-    // ...
+  let-in "let {bindings} in {body}"
+  match "case {target} of { {branches} }"
+  lambda "\\{params} -> {body}"
+  // ...
 }
 ```
 
@@ -179,6 +191,5 @@ cargo check -p laplan-synthesis --no-default-features
 | WGSL shader | `compiler/synthesis/src/wgsl_emit.rs` |
 | Python binding | `compiler/synthesis/src/bind_python.rs` |
 | TypeScript binding | `compiler/synthesis/src/bind_typescript.rs` |
-| サーバ実装 (atproto-server feature) | `compiler/synthesis/src/bind_server.rs`, `server_output.rs` |
 
 これらは言語テンプレートではなく emit 層の対応になります。詳細は [architecture/synthesis.md](../architecture/synthesis.md) 。

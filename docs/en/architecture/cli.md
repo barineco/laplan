@@ -14,9 +14,8 @@ cargo run -p laplan-cli -- <command> [options]
 | `solve <diagnose\|paths\|reachable\|goal\|structure>` | Petri net state space analysis |
 | `generate` | Multi-language SDK emit (proved bundle / lexicon-dir as input) |
 | `emit-wasm` | WASM binary emit (supports `--bake` options) |
-| `inverse` | Rust crate → `.lex` inverse conversion |
-| `publish-packages` | Bulk multi-language package output |
-| `audit-packages` | Audit of published packages |
+| `invert` | Existing code → `.lex` inverse conversion (21 languages + wasm) |
+| `inverse` | (Deprecated) Rust crate → `.lex` inverse conversion. Retained for backward compatibility; use `invert` instead. |
 | `convert` | Bidirectional conversion between `.json` / `.kdl` / `.lex` |
 
 ## lint
@@ -59,19 +58,21 @@ Common options:
 | Mode | Condition | Behavior |
 |---|---|---|
 | dir mode | `--lib-lex` not specified | Recursively scans the specified directory only. For experimentation. |
-| workspace mode | `--lib-lex` + `--face` specified | Adds face axiom member lex/ to the scan. Expands face capabilities into the initial marking. |
+| workspace mode | `--lib-lex` + `--face` specified | Adds face axiom member lex/ to the scan. Expands face capabilities into the initial marking. Builds a `JointTransitionTable` to also analyze cross-boundary transitions. |
 
 ### solve diagnose
 
-Structural diagnosis for all endpoints.
+Structural diagnosis for all endpoints. `--face` is optional. When specified, cross-boundary endpoints for that face are also diagnosed.
 
 ```bash
-laplan solve diagnose <dir> [--max-depth 8]
+laplan solve diagnose <dir> [--face <name>] [--lib-lex <path>] [--max-depth 8]
 ```
 
 Detected: MissingProduces, DeadBridge, SubtypeCycle, TimedCapabilityNoRenewal, LawTargetNotFound, ConvergentPaths.
 
 ConvergentPaths is reported when multiple paths reach the same goal at different depths.
+
+Running without `--face` or `--lib-lex` is supported (dir mode). When `--lib-lex` is given but `--face` is omitted, an integrated diagnosis across all faces is run.
 
 ### solve paths
 
@@ -163,38 +164,52 @@ laplan emit-wasm --bake [--simd] [--parallel] [--constant-time] \
 | `--parallel` | Embed ParallelDag for parallelization |
 | `--constant-time` | Constant-time execution |
 | `--bind <typescript\|python>` | Generate bindings for WASM |
-| `--server-output <dir>` | Generate server implementation stub |
 | `--lib-lex <path>` | Load cratis/lib declarations |
 | `--module-dir <dir>` | Directory containing module.lex |
 
 See [architecture/compiler.md](compiler.md) for details.
 
-## inverse
+## invert
 
-Inverse-generates a `.lex` skeleton from a Rust crate (currently Rust only).
-
-```bash
-laplan inverse --crate <src-dir> --namespace <prefix> --output <path>
-```
-
-Type declaration inverse conversion is handled by `TemplateInverter` driven by mapping.lex and covers all languages, but the CLI entry point accepts only Rust source.
-
-## publish-packages
-
-Bulk multi-language package output.
+Inverse-generates a `.lex` skeleton from existing code. Supports all 21 languages and WASM.
 
 ```bash
-laplan publish-packages [--server-output <dir>] [--wasm-output <path>] \
-    [--lang-output name:dir ...]
+laplan invert <target> <path> --namespace <ns> --output <file>
 ```
 
-## audit-packages
+`<target>` is a language name from `axiom/target/lang/` (rust / typescript / python / ... for all 21 languages) or `wasm`. `<path>` is a directory or a single file.
 
-Audit of published packages (enabled with the `atproto-server` feature).
+### Argument dispatch
+
+| Condition | Behavior |
+|---|---|
+| `<path>` extension is `.wasm`, or `--format wasm` | Calls `invert_wasm_binary` |
+| `<target>` is `rust` and `<path>` is a directory | Calls `invert_rust_crate`, a thin wrapper that internally dispatches to `invert_source_to_lex("rust", ...)` |
+| `<target>` is another language and `<path>` is a directory | Collects sources filtered by the extension in `cached_mapping(target)`, then calls `invert_source_to_lex` |
+| `<path>` is a single file (non-WASM) | Passes the single file to `invert_source_to_lex` |
+
+### Options
+
+| Option | Description |
+|---|---|
+| `--namespace <ns>` | Namespace prefix for the generated `.lex` (required) |
+| `--output <file>` | Output file path (required) |
+| `--format wasm` | Treat the input as a WASM binary regardless of file extension |
+
+### Examples
 
 ```bash
-laplan audit-packages [--lang-output name:dir ...]
+# Rust crate inverse
+laplan invert rust modules/pds/src --namespace pds --output out/pds.lex
+
+# TypeScript source inverse
+laplan invert typescript src/generated --namespace com.example --output out/types.lex
+
+# WASM binary inverse
+laplan invert wasm target/wasm/module.wasm --namespace com.example --output out/module.lex
 ```
+
+For implementation details, see the "laplan-inverse" section in [architecture/compiler.md](compiler.md).
 
 ## convert
 

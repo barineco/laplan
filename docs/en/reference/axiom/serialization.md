@@ -40,5 +40,5 @@ Variants with `_dag` are for IPLD DAG-CBOR (with ordering and deterministic enco
 ## Dependencies
 
 - [`neco-json`](https://github.com/barineco/neco-crates/tree/main/neco-json), [`neco-cbor`](https://github.com/barineco/neco-crates/tree/main/neco-cbor), [`neco-kdl`](https://github.com/barineco/neco-crates/tree/main/neco-kdl) (language implementations specified in morph.lex).
-- Depends on the `bytes` axiom ([axiom-string](axiom-string.md)).
-- Used by `cid` and `car` via DAG-CBOR ([axiom-content-addressing](axiom-content-addressing.md)).
+- Depends on the `bytes` axiom ([axiom-string](axiom/string.md)).
+- Used by `cid` and `car` via DAG-CBOR ([axiom-content-addressing](axiom/content-addressing.md)).

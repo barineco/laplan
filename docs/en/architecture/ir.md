@@ -114,7 +114,7 @@ pub enum FnExpr {
 
 ### resolver.lex: KDL Notation for FnExpr
 
-`axiom/resolver.lex` is a `.lex` variant that writes FnExpr directly in KDL. It declaratively defines the 7 runtime resolver functions (loadRecipes, dispatchRecipeStep, checkNeeds, classifyCandidate, executeRecipe, resolve, fetchGoal) and serves as the source of truth.
+`axiom/resolver.lex` is a `.lex` variant that writes FnExpr directly in KDL. It declaratively defines the 9 runtime resolver functions (loadRecipes, dispatchRecipeStep, checkNeeds, classifyCandidate, failGoalUnreachable, resolveFromCandidates, executeRecipe, resolve, fetchGoal) and serves as the source of truth.
 
 `parse_resolver_lex()` (`fn_expr.rs`) provides a semantic interpreter for KDL → `Vec<FnDef>`. The structure places a mapping layer to FnExpr variants on top of the KDL parser ([`neco-kdl`](https://github.com/barineco/neco-crates/tree/main/neco-kdl)) and uses only standard KDL syntax.
 
@@ -122,39 +122,52 @@ KDL node names correspond to key names in `functional {}` templates:
 
 | KDL node | FnExpr variant | Child nodes |
 |---|---|---|
-| `fn "name" { ... }` | `FnDef` | `params`, `return-type`, `body` |
-| `var "x"` | `Var` | - |
+| `fn "name" { ... }` | `FnDef` | `param` (direct children), `return-type`, body = remaining single expr |
+| `var "local.x"` / `$local.x` | `Var` | - (`$` shorthand is syntactic sugar for `var`) |
 | `string "..."` | `StringLit` | - |
 | `int 42` | `IntLit` | - |
 | `bool #true` | `BoolLit` | - |
 | `null-literal` | `Null` | - |
-| `app "f" { arg { ... } }` | `App` | `arg` (multiple) |
-| `lambda { params { ... } body { ... } }` | `Lambda` | `params`, `body` |
-| `fold { fn { ... } init { ... } collection { ... } }` | `Fold` | `fn`, `init`, `collection` |
-| `recurse { ... }` | `Recurse` | `base-case`, `base-value`, `step`, `state` |
-| `filter { predicate { ... } collection { ... } }` | `Filter` | `predicate`, `collection` |
-| `map-transform { transform { ... } collection { ... } }` | `MapTransform` | `transform`, `collection` |
-| `let-in { binding "x" type="T" { value { ... } } body { ... } }` | `LetIn` | `binding` (multiple), `body` |
-| `case { target { ... } branch constructor="C" { ... } }` | `Case` | `target`, `branch` (multiple) |
-| `field "name" { target { ... } }` | `FieldAccess` | `target` |
-| `construct "C" { field "f" { value { ... } } }` | `Construct` | `field` (multiple) |
-| `list { item { ... } }` | `ListLit` | `item` (multiple) |
-| `tuple { item { ... } }` | `Tuple` | `item` (multiple) |
-| `map-from-list { inner { ... } }` | `MapFromList` | `inner` |
-| `map-lookup { target { ... } key { ... } }` | `MapLookup` | `target`, `key` |
-| `map-member { target { ... } key { ... } }` | `MapMember` | `target`, `key` |
-| `is-nothing { value { ... } }` | `IsNothing` | `value` |
-| `from-maybe { default { ... } value { ... } }` | `FromMaybe` | `default`, `value` |
-| `not { value { ... } }` | `Not` | `value` |
-| `binary op="+" { left { ... } right { ... } }` | `BinaryOp` | `left`, `right` |
+| `app "f" { expr* }` | `App` | positional children = args |
+| `lambda { param* expr }` | `Lambda` | `param` (direct children), body = sole non-param child |
+| `fold { expr expr expr }` | `Fold` | 3 positional: fn, init, collection |
+| `recurse { expr expr expr binding* }` | `Recurse` | 3 positional (base-case, base-value, step) + `binding` children = state |
+| `filter { expr expr }` | `Filter` | 2 positional: predicate, collection |
+| `map-transform { expr expr }` | `MapTransform` | 2 positional: transform, collection |
+| `let-in { binding* expr }` | `LetIn` | `binding` children (value is direct child) + non-binding = body |
+| `case { expr branch* }` | `Case` | non-branch child = target + `branch` children |
+| `field "name" { expr }` | `FieldAccess` | sole child = target |
+| `construct "C" { field "f" { expr } }` | `Construct` | `field` children (value is direct child) |
+| `list { expr* }` | `ListLit` | positional children |
+| `tuple { expr* }` | `Tuple` | positional children |
+| `map-from-list { expr }` | `MapFromList` | sole child |
+| `map-lookup { expr expr }` | `MapLookup` | 2 positional: target, key |
+| `map-member { expr expr }` | `MapMember` | 2 positional: target, key |
+| `is-nothing { expr }` | `IsNothing` | sole child |
+| `from-maybe { expr expr }` | `FromMaybe` | 2 positional: default, value |
+| `not { expr }` | `Not` | sole child |
+| `binary op="+" { expr expr }` | `BinaryOp` | 2 positional: left, right |
 | `error-raise "msg"` | `ErrorRaise` | - |
-| `fst { value { ... } }` | `Fst` | `value` |
-| `snd { value { ... } }` | `Snd` | `value` |
-| `head { value { ... } }` | `Head` | `value` |
-| `null-check { value { ... } }` | `NullCheck` | `value` |
-| `concat { left { ... } right { ... } }` | `Concat` | `left`, `right` |
+| `fst { expr }` | `Fst` | sole child |
+| `snd { expr }` | `Snd` | sole child |
+| `head { expr }` | `Head` | sole child |
+| `null-check { expr }` | `NullCheck` | sole child |
+| `concat { expr expr }` | `Concat` | 2 positional: left, right |
 
 The `branch` in case specifies the pattern via properties: `constructor="Name"` (bound variables are children `bind "var"`), `tuple=#true`, `wildcard=#true`.
+
+### Identifier NSID namespace
+
+String identifiers in FnExpr KDL carry a prefix indicating their origin layer:
+
+| Prefix | Meaning | Example |
+|---|---|---|
+| `local.` | Function parameter / let binding | `$local.goal` |
+| `lang.` | Language primitive / runtime utility | `app "lang.mapGetRequired"` |
+| `cli.` | CLI runtime primitive | `app "cli.call"`, `$cli.ctx` |
+| (none) | Self-reference within the same file | `app "resolve"` |
+
+At emit time, the prefix is stripped and only the base name appears in the generated language-specific code.
 
 Parse results flow directly into the existing lowering (`fn_to_lex2`) and `template_engine_fn` (`emit_fn_expr`), generating resolver code for all 21 languages + 4 Lex₁ languages. `runtime_program_fn.rs` loads resolver.lex via `include_str!("../../../axiom/resolver.lex")` and returns it as `Vec<FnDef>` through `functional_resolve_program()`.
 
@@ -164,7 +177,7 @@ Imperative-style statements and expressions. Covers if / for / while / let / mut
 
 ```rust
 pub enum Stmt {
-    Let { name, ty, value },
+    Let { pattern, ty, value },
     Mut { name, ty, value },
     Assign { target, value },
     If { cond, then_body, else_body },
@@ -174,6 +187,9 @@ pub enum Stmt {
     Continue,
     StoreOp(String, Expr, Expr),
     AtomicStore { mnemonic, addr, value },
+    Match { target: Expr, arms: Vec<(Pattern, Vec<Stmt>)> },
+    Expr(Expr),
+    Raw(String),
 }
 
 pub enum Expr {
@@ -184,10 +200,59 @@ pub enum Expr {
     Call, Construct,
     IsNull, Not, First, ErrorRaise,
     AtomicLoad, AtomicRmwAdd, AtomicWait, // ...
+    Match { target: Box<Expr>, arms: Vec<(Pattern, Expr)> },
+    MethodChain { receiver: Box<Expr>, calls: Vec<(String, Vec<Expr>)> },
+    IfLetTest { pattern: Box<Pattern>, rhs: Box<Expr> },
+    IfElse { cond: Box<Expr>, then_body: Vec<Stmt>, else_body: Vec<Stmt> },
+    Raw(String),
 }
 ```
 
+Roles of the additional variants:
+
+| variant | Role |
+|---|---|
+| `Stmt::Let` | `let <pattern>: <ty> = <value>;`. The LHS holds a `Pattern`, letting a plain binding (`let x = v;`) and a destructuring let (`let StructName { f1, f2 } = v;`) share a single path. |
+| `Stmt::Match` | `match <target> { <pattern> => <body>, ... }` statement form. Each arm is `(Pattern, Vec<Stmt>)`; a single-expression arm is wrapped in e.g. `Stmt::Return` so the arm body is always `Vec<Stmt>`. |
+| `Stmt::Expr(Expr)` | Expression in statement position (method-call-stmt / try-stmt / macro-call-stmt). Emitted as `{expr};`. |
+| `Stmt::Raw(String)` | Verbatim fallback for a statement that cannot be structured. Its presence in inverse artifacts surfaces unhandled sites. |
+| `Expr::Match` | match in expression position. The arm body is a single `Expr`; a block form either uses its final expression or falls back to `Expr::Raw`. |
+| `Expr::MethodChain` | Represents `receiver.call1(args1).call2(args2)...`. Target of iterator-idiom recognition. |
+| `Expr::IfLetTest` | The condition part of `if let <pattern> = <rhs>`. Used as `Stmt::If { cond: Expr::IfLetTest { .. }, .. }`. |
+| `Expr::IfElse` | if-else in expression position (e.g. `let x = if cond { 1 } else { 2 };`). Block bodies are kept as `Vec<Stmt>`; independent from `Stmt::If` which covers the statement-position form. |
+| `Expr::Raw(String)` | Verbatim fallback for an expression that cannot be structured (`await`, `unsafe { ... }`, macro invocations, etc.). |
+
 `RuntimeFn` is the Lex₂ function definition and holds `name`, `params`, `return_type`, and `body: Vec<Stmt>`.
+
+### Pattern
+
+Structured pattern for match arms and the LHS of `if let`. Held by Lex₂ match structures; independent from Case branches on the Lex₁ side.
+
+```rust
+pub enum Pattern {
+    Wildcard,
+    Binding { name: String, mutable: bool },
+    VariantUnit(String),
+    VariantTuple { variant: String, binds: Vec<Pattern> },
+    VariantStruct { variant: String, fields: Vec<(String, Pattern)> },
+    Struct { name: String, fields: Vec<(String, Pattern)> },
+    Literal(String),
+    Guarded { pattern: Box<Pattern>, guard: Box<Expr> },
+    Raw(String),
+}
+```
+
+| variant | Surface form |
+|---|---|
+| `Wildcard` | `_` |
+| `Binding` | `x` / `mut x` |
+| `VariantUnit` | Variant without binds (`None`, `Ok(_)`-like) |
+| `VariantTuple` | `Some(x)` / `Ok(value)` / `Err(e)` |
+| `VariantStruct` | sum-type variant destructuring inside match arms (e.g. the `Point { x, y }` part of `Some(Point { x, y })`) |
+| `Struct` | Product-type struct destructuring itself (e.g. the LHS of `let StructName { f1, f2 } = v;`). Distinct in context from `VariantStruct`. |
+| `Literal` | literals such as `0`, `"str"`, `true` |
+| `Guarded` | match arm with guard: `<pattern> if <guard>` |
+| `Raw(String)` | Verbatim fallback when the pattern cannot be structured |
 
 ## Lowering: Lex₁ → Lex₂
 

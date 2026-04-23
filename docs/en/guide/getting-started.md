@@ -38,10 +38,10 @@ Create a directory under `axiom/`, then write a `rule.lex` and a `lexicon`.
 ```kdl
 // lexicon/sample/get-user.lex
 lexicon "sample.get-user" version=1 {
-    query {
-        params { handle { type=string; required=#true } }
-        output { did { type=string } }
-    }
+  query {
+    params { handle { type=string; required=#true } }
+    output { did { type=string } }
+  }
 }
 ```
 
@@ -50,8 +50,8 @@ lexicon "sample.get-user" version=1 {
 ```kdl
 // lexicon/sample/rule.lex
 rule "resolve-handle" {
-    requires { input { handle } }
-    produces { output { did } }
+  requires { input { handle } }
+  produces { output { did } }
 }
 ```
 
@@ -104,7 +104,7 @@ synthesis operates per cratis. Declare a cratis first.
 ```kdl
 // lexicon/sample/cratis.lex
 cratis "sample" version=1 {
-    provides { endpoint "sample.get-user" }
+  provides { endpoint "sample.get-user" }
 }
 ```
 

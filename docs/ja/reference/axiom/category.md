@@ -10,8 +10,8 @@
 
 ```kdl
 derives "math.composed.sum_of_squares" via compose {
-    sources "i32.multiply" "i32.add"
-    // ...
+  sources "i32.multiply" "i32.add"
+  // ...
 }
 ```
 
@@ -24,8 +24,8 @@ derives "math.composed.sum_of_squares" via compose {
 
 ```kdl
 dual follow_dual {
-    // forward:  getFollows(A)   ∋ B
-    // reverse:  getFollowers(B) ∋ A
+  // forward:  getFollows(A)   ∋ B
+  // reverse:  getFollowers(B) ∋ A
 }
 ```
 
@@ -37,8 +37,8 @@ record の蓄積と view の count フィールドが一致する不変条件を
 
 ```kdl
 invariant like_count {
-    record "<record-nsid>"
-    // count(record where target = subject) == view.count-field
+  record "<record-nsid>"
+  // count(record where target = subject) == view.count-field
 }
 ```
 
@@ -48,7 +48,7 @@ invariant like_count {
 
 ```kdl
 law arith_comm {
-    // add(a, b) == add(b, a)
+  // add(a, b) == add(b, a)
 }
 ```
 
@@ -66,8 +66,8 @@ family の scalar member から SIMD transition を導出します。`vectorize`
 
 ```kdl
 derives "simd.f64x2" from family="Numeric" member="number" via vectorize {
-    lane-width 2
-    target "wasm"
+  lane-width 2
+  target "wasm"
 }
 ```
 
@@ -77,7 +77,7 @@ derives "simd.f64x2" from family="Numeric" member="number" via vectorize {
 
 ```kdl
 derives "algebra.modular.mod_inv" from "algebra.modular.mod_pow" via specialize {
-    bind exp="i64.sub(p, 2)"
+  bind exp="i64.sub(p, 2)"
 }
 ```
 

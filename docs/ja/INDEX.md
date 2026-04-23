@@ -1,6 +1,6 @@
 # laplan ドキュメント INDEX
 
-laplan は Lexicon ベースのプログラマブル言語基盤です。型と射を KDL で宣言すると、Petri net solver が合成経路を探し、21 言語の SDK + WASM バイナリを導出します。
+laplan は KDL 形式で型と関係を宣言し、Petri net 経路解決で合成する型型プログラミング言語です。宣言から 21 言語の SDK と WASM バイナリを導出します。
 
 ## ドキュメント一覧
 
@@ -10,7 +10,8 @@ laplan は Lexicon ベースのプログラマブル言語基盤です。型と�
 |---|---|
 | [architecture/overview.md](architecture/overview.md) | crate 依存グラフ、パイプライン全体像、二層 solver の位置づけ |
 | [architecture/parser.md](architecture/parser.md) | `compiler/kdl` + `compiler/ir` パーサ層。KDL → AST → IR の変換 |
-| [architecture/ir.md](architecture/ir.md) | Lex₁/Lex₂ 中間表現、FnExpr / Stmt / Expr、lowering |
+| [architecture/ir.md](architecture/ir.md) | Lex₁/Lex₂ 中間表現、FnExpr / Stmt / Expr、lowering / inverse パイプライン |
+| [architecture/ir-walkthrough.md](architecture/ir-walkthrough.md) | `checkNeeds` / `classifyCandidate` を材料に Lex₀→Lex₁→Lex₂→各言語 emit→inverse 復路を通しで追う |
 | [architecture/compiler.md](architecture/compiler.md) | `compiler/compile` による WASM バイナリ生成、`compiler/inverse` による逆関手 |
 | [architecture/synthesis.md](architecture/synthesis.md) | `compiler/synthesis` の多言語コード生成、mapping.lex / morph.lex / type.lex |
 | [architecture/solver.md](architecture/solver.md) | Petri net solver、二層構成 (morphism / instruction)、枝刈り |
@@ -24,29 +25,38 @@ laplan は Lexicon ベースのプログラマブル言語基盤です。型と�
 | [guide/cratis.md](guide/cratis.md) | cratis の書き方、provides/requires、workspace cratis、faces |
 | [guide/adding-language.md](guide/adding-language.md) | `axiom/target/lang/` に新言語を追加する手順 |
 | [guide/axiom-bindings.md](guide/axiom-bindings.md) | axiom 実装の言語別差し替え (`bindings {}` セクション) |
-| [guide/wasm-extension.md](guide/wasm-extension.md) | VSCode 拡張と WASM のビルド、Petri net webview |
+| [guide/wasm-extension.md](guide/wasm-extension.md) | VSCode 拡張と Vue UI のビルド、packages/ 構成、Petri net webview |
 
 ### リファレンス
 
 | ファイル | 内容 |
 |---|---|
 | [reference/layers.md](reference/layers.md) | `.lex` トップノードと Lex₀/₁/₂/₃ 層分類 |
-| [reference/axiom-numeric.md](reference/axiom-numeric.md) | `axiom/i32` `axiom/i64` `axiom/f32` `axiom/f64` `axiom/bool` 数値プリミティブ |
-| [reference/axiom-string.md](reference/axiom-string.md) | `axiom/str` `axiom/bytes` 文字列・バイト列 |
-| [reference/axiom-serialization.md](reference/axiom-serialization.md) | `axiom/json` `axiom/cbor` `axiom/kdl` シリアライゼーション |
-| [reference/axiom-content-addressing.md](reference/axiom-content-addressing.md) | `axiom/cid` `axiom/car` コンテンツアドレッシング |
-| [reference/axiom-crypto.md](reference/axiom-crypto.md) | `axiom/crypto` ハッシュ・署名・鍵導出 |
-| [reference/axiom-algebra.md](reference/axiom-algebra.md) | `axiom/algebra` 代数構造と family (product, vectorize) |
-| [reference/axiom-category.md](reference/axiom-category.md) | `axiom/category` 圏論プリミティブ (compose, dual, lift) |
-| [reference/axiom-memory.md](reference/axiom-memory.md) | `axiom/memory` メモリモデル |
+| [reference/mapping-template.md](reference/mapping-template.md) | mapping.lex の `{name}` placeholder と `«directive»` directive 仕様 |
+| [reference/axiom/numeric.md](reference/axiom/numeric.md) | `axiom/i32` `axiom/i64` `axiom/f32` `axiom/f64` `axiom/bool` 数値プリミティブ |
+| [reference/axiom/string.md](reference/axiom/string.md) | `axiom/str` `axiom/bytes` 文字列・バイト列 |
+| [reference/axiom/serialization.md](reference/axiom/serialization.md) | `axiom/json` `axiom/cbor` `axiom/kdl` シリアライゼーション |
+| [reference/axiom/content-addressing.md](reference/axiom/content-addressing.md) | `axiom/cid` `axiom/car` コンテンツアドレッシング |
+| [reference/axiom/crypto.md](reference/axiom/crypto.md) | `axiom/crypto` ハッシュ・署名・鍵導出 |
+| [reference/axiom/algebra.md](reference/axiom/algebra.md) | `axiom/algebra` 代数構造と family (product, vectorize) |
+| [reference/axiom/category.md](reference/axiom/category.md) | `axiom/category` 圏論プリミティブ (compose, dual, lift) |
+| [reference/axiom/memory.md](reference/axiom/memory.md) | `axiom/memory` メモリモデル |
+| [reference/axiom/view.md](reference/axiom/view.md) | `axiom/view` グラフ UI 型宣言 (Position / Size / NodeBox / EdgeRoute / ViewportTransform) |
 | [reference/generated-output-licenses.md](reference/generated-output-licenses.md) | 生成物ごとの MIT / MPL-2.0 境界 |
 | [reference/target-languages.md](reference/target-languages.md) | 21 言語の Capability level、型対応表、カテゴリ分類 |
+| [reference/rule-lex-residuals.md](reference/rule-lex-residuals.md) | `rule.lex` に残る special-call の理由付き一覧 |
 
 ### ケーススタディ
 
 | ファイル | 内容 |
 |---|---|
 | [case/solver-type-discipline.md](case/solver-type-discipline.md) | solver のショートカットを型の精密化で解消する手法。格納証拠型、semantic fact、completion token |
+
+### その他
+
+| ファイル | 内容 |
+|---|---|
+| [faq.md](faq.md) | よくある質問。Petri net の必然性、solver 運用、言語対応、ライセンス等 |
 
 ## やりたいこと別
 
@@ -57,6 +67,9 @@ laplan は Lexicon ベースのプログラマブル言語基盤です。型と�
 | 全体像を掴む | [overview](architecture/overview.md), [layers](reference/layers.md) |
 | `.lex` の書き方を確認する | [layers](reference/layers.md), [getting-started](guide/getting-started.md) |
 | パイプラインを追跡する | [overview](architecture/overview.md), [parser](architecture/parser.md), [ir](architecture/ir.md) |
+| Lex パイプラインの全景を把握する | [ir](architecture/ir.md) (inverse / 消費の節) |
+| 具体関数で Lex 変換の全段を追う | [ir-walkthrough](architecture/ir-walkthrough.md) |
+| mapping.lex の置換記法を確認する | [mapping-template](reference/mapping-template.md) |
 | 生成物のライセンス境界を確認する | [generated-output-licenses](reference/generated-output-licenses.md) |
 | solver の仕組みを理解する | [solver](architecture/solver.md) |
 | solver のショートカットを解消する | [solver-type-discipline](case/solver-type-discipline.md), [solver](architecture/solver.md) |
@@ -72,12 +85,14 @@ laplan は Lexicon ベースのプログラマブル言語基盤です。型と�
 |---|---|
 | 最初の `.lex` を書いて solve する | [getting-started](guide/getting-started.md), [cli](architecture/cli.md) |
 | lint / solve コマンドを使う | [cli](architecture/cli.md) |
+| 既存コードから `.lex` を起こす | [cli](architecture/cli.md) (`invert` サブコマンド), [compiler](architecture/compiler.md) (「laplan-inverse」節) |
 | cratis を定義する | [cratis](guide/cratis.md), [layers](reference/layers.md) |
-| axiom の所属 cratis を確認する | [cratis](guide/cratis.md), [axiom-crypto](reference/axiom-crypto.md), [axiom-algebra](reference/axiom-algebra.md) |
-| axiom に演算を追加する | [ir](architecture/ir.md), [synthesis](architecture/synthesis.md), [axiom-algebra](reference/axiom-algebra.md) |
+| axiom の所属 cratis を確認する | [cratis](guide/cratis.md), [axiom-crypto](reference/axiom/crypto.md), [axiom-algebra](reference/axiom/algebra.md) |
+| axiom に演算を追加する | [ir](architecture/ir.md), [synthesis](architecture/synthesis.md), [axiom-algebra](reference/axiom/algebra.md) |
 | axiom の実装を別パッケージに差し替える | [axiom-bindings](guide/axiom-bindings.md) |
 | 新言語を追加する | [adding-language](guide/adding-language.md), [synthesis](architecture/synthesis.md) |
-| VSCode 拡張を触る | [wasm-extension](guide/wasm-extension.md) |
+| VSCode 拡張 / Vue UI を触る | [wasm-extension](guide/wasm-extension.md) |
+| グラフ UI の座標型を確認する | [axiom-view](reference/axiom/view.md), [layers](reference/layers.md) |
 
 ### 変更する
 
@@ -104,25 +119,27 @@ laplan は Lexicon ベースのプログラマブル言語基盤です。型と�
 | `compiler/inverse` (laplan-inverse) | [compiler](architecture/compiler.md) |
 | `compiler/cli` (laplan) | [cli](architecture/cli.md) |
 | `extension/` (VSCode 拡張) | [wasm-extension](guide/wasm-extension.md) |
+| `packages/` (UI monorepo) | [wasm-extension](guide/wasm-extension.md) |
 | `vendored-json/` | [parser](architecture/parser.md) |
 
 ### axiom → docs
 
 | ディレクトリ | 主な参照先 |
 |---|---|
-| `axiom/i32`, `axiom/i64`, `axiom/f32`, `axiom/f64`, `axiom/bool` | [axiom-numeric](reference/axiom-numeric.md) |
-| `axiom/str`, `axiom/bytes` | [axiom-string](reference/axiom-string.md) |
-| `axiom/json`, `axiom/cbor`, `axiom/kdl` | [axiom-serialization](reference/axiom-serialization.md) |
-| `axiom/cid`, `axiom/car` | [axiom-content-addressing](reference/axiom-content-addressing.md) |
-| `axiom/crypto` | [axiom-crypto](reference/axiom-crypto.md) |
-| `axiom/algebra` | [axiom-algebra](reference/axiom-algebra.md) |
-| `axiom/category` | [axiom-category](reference/axiom-category.md) |
-| `axiom/memory` | [axiom-memory](reference/axiom-memory.md) |
+| `axiom/i32`, `axiom/i64`, `axiom/f32`, `axiom/f64`, `axiom/bool` | [axiom-numeric](reference/axiom/numeric.md) |
+| `axiom/str`, `axiom/bytes` | [axiom-string](reference/axiom/string.md) |
+| `axiom/json`, `axiom/cbor`, `axiom/kdl` | [axiom-serialization](reference/axiom/serialization.md) |
+| `axiom/cid`, `axiom/car` | [axiom-content-addressing](reference/axiom/content-addressing.md) |
+| `axiom/crypto` | [axiom-crypto](reference/axiom/crypto.md) |
+| `axiom/algebra` | [axiom-algebra](reference/axiom/algebra.md) |
+| `axiom/category` | [axiom-category](reference/axiom/category.md) |
+| `axiom/memory` | [axiom-memory](reference/axiom/memory.md) |
 | `axiom/resolver.lex` | [ir](architecture/ir.md) (「resolver.lex」節), [layers](reference/layers.md) |
 | `axiom/target/lang` | [synthesis](architecture/synthesis.md), [target-languages](reference/target-languages.md), [adding-language](guide/adding-language.md) |
 | `axiom/target/bind` | [synthesis](architecture/synthesis.md) |
 | `axiom/target/binary` | [compiler](architecture/compiler.md) |
 | `axiom/solve` | [solver](architecture/solver.md) |
+| `axiom/view` | [axiom-view](reference/axiom/view.md) |
 
 ### 変更領域 → 影響範囲
 
@@ -130,10 +147,10 @@ laplan に変更を入れる際、影響する docs と下流プロジェクト 
 
 | 変更領域 | laplan docs | 下流 docs |
 |---|---|---|
-| axiom/ (型・射・制約の追加) | [axiom-*](reference/axiom-algebra.md) の該当ファイル | neco-atproto `guide/codegen.md`, `architecture/crate-map.md` |
-| axiom/target/lang/ (mapping 変更) | [synthesis](architecture/synthesis.md), [target-languages](reference/target-languages.md) | neco-atproto `guide/{lang}.md` |
-| solver (探索改善) | [solver](architecture/solver.md) | neco-atproto `protocol/04-lexicon.md`, `architecture/overview.md` |
-| synthesis 出力形式 | [synthesis](architecture/synthesis.md) | neco-atproto 全 `guide/{lang}.md` |
+| axiom/ (型・射・制約の追加) | [axiom-*](reference/axiom/algebra.md) の該当ファイル | neco-atproto `guide/codegen.md`, `architecture/crate-map.md` |
+| axiom/target/lang/ (mapping 変更) | [synthesis](architecture/synthesis.md), [target-languages](reference/target-languages.md), [mapping-template](reference/mapping-template.md) | neco-atproto `guide/{lang}.md` |
+| solver (探索改善・joint solve) | [solver](architecture/solver.md) | neco-atproto `protocol/04-lexicon.md`, `architecture/overview.md` |
+| synthesis 出力形式 (cross-boundary emit / stub validator) | [synthesis](architecture/synthesis.md) | neco-atproto 全 `guide/{lang}.md` |
 | inverse (逆関手) の対応範囲 | [compiler](architecture/compiler.md), [cli](architecture/cli.md) | neco-atproto `development/` 逆変換検証 |
 | cratis 構造 | [cratis](guide/cratis.md), [layers](reference/layers.md) | neco-atproto `protocol/04-lexicon.md`, `architecture/overview.md` |
 | CLI サブコマンド | [cli](architecture/cli.md) | neco-atproto `guide/codegen.md` |

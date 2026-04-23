@@ -10,8 +10,8 @@ Derives a new API by composing multiple existing APIs.
 
 ```kdl
 derives "math.composed.sum_of_squares" via compose {
-    sources "i32.multiply" "i32.add"
-    // ...
+  sources "i32.multiply" "i32.add"
+  // ...
 }
 ```
 
@@ -24,8 +24,8 @@ Declares commutativity conditions for forward / reverse queries on the same reco
 
 ```kdl
 dual follow_dual {
-    // forward:  getFollows(A)   ∋ B
-    // reverse:  getFollowers(B) ∋ A
+  // forward:  getFollows(A)   ∋ B
+  // reverse:  getFollowers(B) ∋ A
 }
 ```
 
@@ -37,8 +37,8 @@ Declares the invariant that accumulated records match the count field of a view.
 
 ```kdl
 invariant like_count {
-    record "<record-nsid>"
-    // count(record where target = subject) == view.count-field
+  record "<record-nsid>"
+  // count(record where target = subject) == view.count-field
 }
 ```
 
@@ -48,7 +48,7 @@ Algebraic law declarations. Provides mathematical backing for existing patterns 
 
 ```kdl
 law arith_comm {
-    // add(a, b) == add(b, a)
+  // add(a, b) == add(b, a)
 }
 ```
 
@@ -66,8 +66,8 @@ Derives SIMD transitions from scalar members of a family. `vectorize` cooperates
 
 ```kdl
 derives "simd.f64x2" from family="Numeric" member="number" via vectorize {
-    lane-width 2
-    target "wasm"
+  lane-width 2
+  target "wasm"
 }
 ```
 
@@ -77,7 +77,7 @@ Provides specialize, which binds parameters to obtain a new morphism.
 
 ```kdl
 derives "algebra.modular.mod_inv" from "algebra.modular.mod_pow" via specialize {
-    bind exp="i64.sub(p, 2)"
+  bind exp="i64.sub(p, 2)"
 }
 ```
 

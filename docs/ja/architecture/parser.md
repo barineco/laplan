@@ -31,37 +31,37 @@ pub fn serialize_document(doc: &neco_kdl::KdlDocument) -> String
 ```kdl
 // Lex₀: lexicon
 lexicon "com.example.foo" version=1 {
-    parameters { handle { type=string } }
-    output { did { type=string } }
+  parameters { handle { type=string } }
+  output { did { type=string } }
 }
 
 // Lex₁: rule / const / assign / chain / refinement
 rule "resolve-handle" {
-    requires { input { handle } }
-    produces { output { did } }
+  requires { input { handle } }
+  produces { output { did } }
 }
 
 const "epoch" { type=i64; value=0 }
 
 morph.chain "register" {
-    step "validate-handle"
-    step "issue-did"
+  step "validate-handle"
+  step "issue-did"
 }
 
 // Lex₂: func / family / law / dual / invariant
 func.law "i32.add.comm" {
-    forall { a { type=i32 }; b { type=i32 } }
-    equation "add(a, b) == add(b, a)"
+  forall { a { type=i32 }; b { type=i32 } }
+  equation "add(a, b) == add(b, a)"
 }
 
 func.family "Complex" {
-    product "f32" 2
+  product "f32" 2
 }
 
 // Lex₃: cratis / import
 cratis "my-app" version=1 {
-    provides { endpoint "com.example.foo" }
-    requires { axiom "i32.add" }
+  provides { endpoint "com.example.foo" }
+  requires { axiom "i32.add" }
 }
 ```
 

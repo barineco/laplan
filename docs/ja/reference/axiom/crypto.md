@@ -80,7 +80,7 @@ Argon2id 等の memory-hard アルゴリズムを想定 (morph.lex で各言語�
 
 ## 依存関係
 
-- `bytes` axiom ([axiom-string](axiom-string.md))
+- `bytes` axiom ([axiom-string](axiom/string.md))
 - 実装は [neco-sha2](https://github.com/barineco/neco-crates/tree/main/neco-sha2), [neco-sha1](https://github.com/barineco/neco-crates/tree/main/neco-sha1), [neco-secp](https://github.com/barineco/neco-crates/tree/main/neco-secp), [neco-p256](https://github.com/barineco/neco-crates/tree/main/neco-p256), [neco-galois](https://github.com/barineco/neco-crates/tree/main/neco-galois), [neco-vault](https://github.com/barineco/neco-crates/tree/main/neco-vault) 等 (morph.lex で各言語解決)
 - AT Protocol 専用ではなく汎用の暗号プリミティブ
 - 言語別の実装差し替えについては [axiom-bindings](../guide/axiom-bindings.md) を参照

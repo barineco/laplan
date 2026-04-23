@@ -14,9 +14,8 @@ cargo run -p laplan-cli -- <command> [options]
 | `solve <diagnose\|paths\|reachable\|goal\|structure>` | Petri net 状態空間分析 |
 | `generate` | 多言語 SDK emit (proved bundle / lexicon-dir を入力) |
 | `emit-wasm` | WASM バイナリ emit (`--bake` 系オプション対応) |
-| `inverse` | Rust クレート → `.lex` 逆変換 |
-| `publish-packages` | 多言語パッケージの一括出力 |
-| `audit-packages` | 公開済みパッケージの audit |
+| `invert` | 既存コード → `.lex` 逆変換 (21 言語 + wasm) |
+| `inverse` | (非推奨) Rust クレート → `.lex` 逆変換。後方互換のため残存、`invert` を使用してください |
 | `convert` | `.json` / `.kdl` / `.lex` の相互変換 |
 
 ## lint
@@ -59,19 +58,21 @@ laplan solve <subcommand> <dir> [options]
 | モード | 条件 | 動作 |
 |---|---|---|
 | dir モード | `--lib-lex` 未指定 | 指定ディレクトリのみを再帰スキャン。実験用 |
-| workspace モード | `--lib-lex` + `--face` 指定 | face の axiom member の lex/ を追加スキャン。face の capability を初期 marking に展開 |
+| workspace モード | `--lib-lex` + `--face` 指定 | face の axiom member の lex/ を追加スキャン。face の capability を初期 marking に展開。`JointTransitionTable` を構築して cross-boundary transition も解析 |
 
 ### solve diagnose
 
-全 endpoint の構造診断。
+全 endpoint の構造診断。`--face` は省略可能です。指定した場合は該当 face の cross-boundary endpoint も診断します。
 
 ```bash
-laplan solve diagnose <dir> [--max-depth 8]
+laplan solve diagnose <dir> [--face <name>] [--lib-lex <path>] [--max-depth 8]
 ```
 
 検出項目: MissingProduces, DeadBridge, SubtypeCycle, TimedCapabilityNoRenewal, LawTargetNotFound, ConvergentPaths。
 
 ConvergentPaths は同一ゴールに異なる深さで到達する経路が複数存在する場合に報告する。
+
+`--face` なし / `--lib-lex` なしでも動作します (dir モード)。`--lib-lex` を指定して `--face` を省略した場合は、全 face の統合診断を実行します。
 
 ### solve paths
 
@@ -163,38 +164,52 @@ laplan emit-wasm --bake [--simd] [--parallel] [--constant-time] \
 | `--parallel` | ParallelDag を組み込み並列化 |
 | `--constant-time` | 定数時間実行 |
 | `--bind <typescript\|python>` | WASM に対するバインディングを生成 |
-| `--server-output <dir>` | サーバ実装 stub を生成 |
 | `--lib-lex <path>` | cratis/lib 宣言の取り込み |
 | `--module-dir <dir>` | module.lex を含むディレクトリ |
 
 詳細は [architecture/compiler.md](compiler.md) 。
 
-## inverse
+## invert
 
-Rust クレートから `.lex` スケルトンを逆生成する (現状 Rust 固定)。
-
-```bash
-laplan inverse --crate <src-dir> --namespace <prefix> --output <path>
-```
-
-型宣言の逆変換は mapping.lex 駆動の `TemplateInverter` で全言語に対応していますが、CLI 入口は Rust ソースのみを受け付けます。
-
-## publish-packages
-
-多言語パッケージの一括出力。
+既存コード (21 言語 + wasm) から `.lex` スケルトンを逆生成します。
 
 ```bash
-laplan publish-packages [--server-output <dir>] [--wasm-output <path>] \
-    [--lang-output name:dir ...]
+laplan invert <target> <path> --namespace <ns> --output <file>
 ```
 
-## audit-packages
+`<target>` には `axiom/target/lang/` 配下の言語名 (rust / typescript / python / ... の 21 言語) または `wasm` を指定します。`<path>` はディレクトリまたは単体ファイルです。
 
-公開済みパッケージの audit (`atproto-server` feature で有効)。
+### 引数の判定フロー
+
+| 条件 | 動作 |
+|---|---|
+| `<path>` の拡張子が `.wasm`、または `--format wasm` | `invert_wasm_binary` を呼ぶ |
+| `<target>` が `rust` かつ `<path>` がディレクトリ | `invert_rust_crate` (内部で `invert_source_to_lex("rust", ...)` を呼ぶ thin wrapper) |
+| `<target>` がその他の言語かつ `<path>` がディレクトリ | `cached_mapping(target)` で拡張子フィルタしたソースを収集し `invert_source_to_lex` |
+| `<path>` が単体ファイル (wasm 以外) | ファイル 1 本を `invert_source_to_lex` に渡す |
+
+### オプション
+
+| オプション | 説明 |
+|---|---|
+| `--namespace <ns>` | 生成する `.lex` の namespace prefix (必須) |
+| `--output <file>` | 出力先ファイルパス (必須) |
+| `--format wasm` | 拡張子によらず WASM バイナリとして処理 |
+
+### 動作例
 
 ```bash
-laplan audit-packages [--lang-output name:dir ...]
+# rust クレートの逆変換
+laplan invert rust modules/pds/src --namespace pds --output out/pds.lex
+
+# TypeScript ソースの逆変換
+laplan invert typescript src/generated --namespace com.example --output out/types.lex
+
+# WASM バイナリの逆変換
+laplan invert wasm target/wasm/module.wasm --namespace com.example --output out/module.lex
 ```
+
+逆変換の実装詳細は [architecture/compiler.md](compiler.md) の「laplan-inverse」節を参照してください。
 
 ## convert
 

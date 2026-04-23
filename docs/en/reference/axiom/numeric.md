@@ -56,7 +56,7 @@ Axiom for numeric primitives. Covers `axiom/i32`, `axiom/i64`, `axiom/f32`, `axi
 | Lex₀ (type) | `type i32`, `type i64`, `type f32`, `type f64`, `type bool` |
 | Lex₀ (lexicon) | `lex i32.add { procedure { input; output } }`, etc. |
 | Lex₁ (morphism) | Morphisms for each operation (searched by the solver) |
-| Lex₂ (family) | SIMD / product family derivation via [axiom-algebra](axiom-algebra.md) |
+| Lex₂ (family) | SIMD / product family derivation via [axiom-algebra](axiom/algebra.md) |
 
 ## Dependencies
 

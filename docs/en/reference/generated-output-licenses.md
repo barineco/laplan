@@ -81,6 +81,6 @@ Defined as public constants in `compiler/ir/src/lib.rs`. Each emit routine prepe
 | `SYNTHESIZED_HEADER` | General synthesis outputs | MIT |
 | `INVERSE_HEADER` | Inverse outputs | MIT |
 
-The header for the runtime solver is emitted by `write_runtime_resolve` via the `atproto-server` feature and declares MPL-2.0.
+The runtime solver header is defined by the `SYNTHESIZED_SOLVER_HEADER` constant and declares MPL-2.0.
 
 The per-language comment prefix conversion is handled by `rewrite_header_prefix(header, prefix)` in `compiler/ir/src/lib.rs`.

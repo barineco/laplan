@@ -121,52 +121,83 @@ Expansion results are added to the `TransitionTable` and become selectable paths
 
 ## laplan-inverse: Inverse Functor
 
-The inverse functor extracts a `.lex` skeleton from generated code and verifies design validity through roundtrip conversion. The current structure has three layers with differing coverage per layer.
+The inverse functor extracts a `.lex` skeleton from generated code and verifies design validity through roundtrip conversion. Two routes, `ast_inverse/` and `wasm/`, feed `emit.rs` which produces `.lex` text, and `equiv.rs` checks logical equivalence.
 
 ```
 compiler/inverse/src/
-├── extract.rs           # Rust source pub API extraction (syn, Rust-specific)
-├── convert.rs           # PublicApi → LexiconIr skeleton (Rust-specific)
-├── emit.rs              # LexiconIr → .lex text (language-agnostic)
-├── template_inverter.rs # Reverse application of mapping.lex templates (language-agnostic)
-├── inverse_type_table.rs
-├── wasm_read.rs         # WASM Type/Import/Export section parsing
-├── wasm_inverse.rs      # WASM types → Lexicon types
-└── roundtrip_tests.rs
+├── lib.rs                       # public entry points + re-exports
+├── source.rs                    # SourceFile, InverseOutput, InverseWarning (shared types)
+├── equiv.rs                     # LexiconIr logical equivalence check (for roundtrip tests)
+├── emit.rs                      # .lex text generation (language-agnostic)
+├── ast_inverse/                 # AST inverse pass shared across all 21 languages
+│   ├── engine.rs                # AST pattern matcher + recursive body matcher
+│   │                            # + control-flow parser (if/for/while/match)
+│   │                            # + Expr structuring parser (method chain / match / if-let-test / guarded pattern)
+│   ├── mapping_driver.rs        # adapter that drives mapping.lex pattern sections
+│   │                            # (control / variable / handler / endpoint / functional)
+│   ├── type_table.rs            # InverseTypeTable (type_map reverse lookup)
+│   ├── product.rs / sum.rs / alias.rs
+│   ├── control.rs               # if/for/fn/module/match
+│   ├── variable.rs              # binding/mutable-binding/assign/return
+│   ├── handler.rs               # endpoint handler (stores body: Vec<Stmt>)
+│   └── rule_chain.rs            # rule precondition / chain morphism recovery
+└── wasm/                        # WASM-specific (direct section reading)
+    ├── read.rs                  # WASM Type/Import/Export section parsing
+    └── inverse.rs               # WASM types → Lexicon types
 ```
 
-### Three-Layer Responsibilities
+### Two Routes
 
-| Layer | Input | Approach | Coverage |
+| Route | Input | Approach | Coverage |
 |---|---|---|---|
-| Type declaration inverse (product / sum / alias) | Generated code | Regex-based reverse application of `syntax {}` in mapping.lex | **All languages with mapping.lex** (declaration-driven) |
-| Function / trait / impl method extraction | Rust source | AST analysis with `syn` | Rust only (Rust-specific) |
-| WASM binary → type recovery | `.wasm` | Direct section reading | WASM independent |
+| AST inverse pass (`ast_inverse/`) | Generated source | `engine.rs` reverse-looks up FnExpr / Stmt / Expr patterns while `mapping_driver.rs` drives the `syntax` + `expr {}` dual schema in mapping.lex | **All 21 languages** (mapping.lex-driven) |
+| WASM binary → type recovery (`wasm/`) | `.wasm` | Direct section reading | WASM independent |
 
-`TemplateInverter::new(syntax, type_table)` in `template_inverter.rs` is a declaration-driven implementation that accepts `MappingSyntax`. `extract_product` / `extract_sum` / `extract_alias` operate across all 21 languages. Tests include both `make_rust_inverter()` and `make_python_inverter()`.
+`ast_inverse` recovers product / sum / alias type declarations plus endpoint / rule-guard / chain / const / assign via the `control` / `variable` / `handler` / `rule_chain` passes. The `mapping_driver` registry drives five driver kinds (control / variable / handler / endpoint / functional) from the pattern sections of mapping.lex. `equiv.rs` provides `assert_lex_equivalent` for logical equivalence judgments in roundtrip tests.
 
-### Public Entry Point
+### Public Entry Points
 
 ```rust
-pub fn generate_inverse_output(
+// Language-agnostic entry (works for all 21 languages + wasm)
+pub fn invert_source_to_lex(
+    target: &str,
+    mapping: &Mapping,
+    sources: &[SourceFile],
+    namespace: &str,
+) -> Result<InverseOutput, InverseError>;
+
+// Rust-facing thin wrapper (internally calls `invert_source_to_lex("rust", ...)`)
+pub fn invert_rust_crate(
     crate_src_dir: &Path,
+    mapping: &Mapping,
     namespace: &str,
     type_table: &InverseTypeTable,
-) -> Result<InverseOutput, String>;
+) -> Result<InverseOutput, InverseError>;
+
+// WASM entry
+pub fn invert_wasm_binary(
+    wasm_bytes: &[u8],
+    namespace: &str,
+) -> Result<InverseOutput, InverseError>;
 ```
 
-Processing flow:
+`invert_source_to_lex` takes `Mapping` as a parameter to avoid a circular dependency between `inverse` and `synthesis`. The CLI side calls `cached_mapping(target)` and passes the result to inverse.
 
-1. `collect_rust_source_files(crate_src_dir)` scans Rust source files.
-2. `extract_public_api_with_source_name` extracts pub functions and types using `syn`.
-3. `convert` transforms PublicApi into a LexiconIr skeleton.
-4. `emit_lex_with_warnings` generates `.lex` text (with accompanying warnings).
+### Body structuring and `Stmt::Raw` fallback
 
-Output receives the `INVERSE_HEADER` automatically (see [parser.md](parser.md)).
+The handler body recovered by `handler.rs` is held as `Vec<Stmt>`. Semantic extraction runs in three layers:
+
+1. The recursive body matcher in `engine.rs` drives the `stmt {}` and `pattern {}` sections of mapping.lex and attempts per-statement pattern matching.
+2. Control-flow forms not covered by patterns (`if` / `for` / `while` / `match`) are structured by dedicated parsers in engine (`parse_if_like` / `parse_for_like` / `parse_while_like` / `parse_match_like`).
+3. The Expr structuring parser (`structure_expr`) promotes let right-hand sides and conditions into `Expr::MethodChain` / `Expr::Match` / `Expr::IfElse` / `Expr::IfLetTest` / `Expr::Construct` / `Expr::FieldAccess` / `Expr::Call`.
+
+Fragments that none of these layers can structure fall through to `Stmt::Raw(String)` / `Expr::Raw(String)` / `Pattern::Raw(String)`, making the unhandled sites visible on the artifact. The design deliberately forgoes a `body_raw: String` shortcut: every failure surfaces as a Raw variant.
+
+The engine's stmt-boundary detector tracks nesting depth for `(`, `{`, and `[`, so expression-statements that contain a closed block (`Self { ... }`, `Ok(Enum::Variant { ... })`, `match x { ... }`) are captured as a single stmt. A `strip_comments` preprocess removes line `//` and block `/* */` comments before body structuring, with string-literal tracking so `//` inside a string literal is preserved (doc comments `///` `//!` are handled via the field-doc path). `structure_expr` promotes `Self { ... }` / `Ok(...)` / `Err(...)` to `Expr::Construct` via mapping.lex `expr.variant.{construct-self, result-ok, result-err}`; `parse_let_complex` structures let RHS that is a `match` / `if-else` into `Expr::Match` / `Expr::IfElse` and let LHS of form `StructName { f1, f2 }` into `Pattern::Struct`. A trait definition body is detected as signature-only by `body_contains_implementation` and kept as an empty-body handler.
 
 ### Coverage
 
-Type declaration inverse (product / sum / alias) is mapping.lex-driven and covers all 21 languages. The public entry point accepts only Rust source.
+Inverse conversion is mapping.lex-driven and unified across all 21 languages. `invert_source_to_lex` is the language-agnostic entry; `invert_rust_crate` is a thin wrapper that calls `invert_source_to_lex("rust", ...)`. The `ast_inverse/` passes read the `syntax` sections and `expr {}` dual schema (pattern descriptions) from mapping.lex to recover product / sum / alias / endpoint / rule-guard / chain / const / assign.
 
 ### Structural Categories Subject to Inverse Conversion
 
@@ -174,7 +205,7 @@ Beyond type declarations, the major `.lex` structures map to synthesis output as
 
 | .lex structure | Language-side output | Recovery path |
 |---|---|---|
-| `type` | Built-in type reference | Reverse lookup of `type_map` in mapping.lex |
+| `type` | Built-in type reference | `ast_inverse::type_table` reverse-looks up `type_map` in mapping.lex |
 | `lexicon` (procedure / query / subscription) | Endpoint handler function / trait method | Reverse lookup of `handler {}` section in mapping.lex |
 | `lexicon` (object / record) | struct / data class | Reverse lookup of `syntax { product }` |
 | sum / union | enum / sealed / tagged union | Reverse lookup of `syntax { sum }` |
@@ -184,7 +215,7 @@ Beyond type declarations, the major `.lex` structures map to synthesis output as
 | `const` / `assign` | Constant / mutable binding | Reverse lookup of `variable { binding, mutable-binding }` |
 | `func.law` / `dual` / `invariant` | Does not appear in normal code | Not covered (reported explicitly as warning) |
 
-`TemplateInverter` covers the three categories: product / sum / alias. Inverse conversion for endpoint / rule-guard / chain / const / assign is reported as `InverseWarning`.
+`ast_inverse` covers the full set of categories (product / sum / alias / endpoint / rule-guard / chain / const / assign) across all 21 languages. Structures that cannot be recovered are reported as `InverseWarning`.
 
 ### Roundtrip Tests
 

@@ -5,9 +5,9 @@
 ```
 type      型の存在
 lexicon   Lex₀ (lex)        型の構造 (入出力の定義)
-morph     Lex₁ (solve)      型間の射 (solver 探索対象)
+rule      Lex₁ (solve)      型間の射 (solver 探索対象)
 ─── solver boundary ───
-func      Lex₂ (constrain)  構造制約 (solver の判断材料)
+constrain Lex₂              構造制約 (solver の判断材料)
 pkg       Lex₃ (package)    パッケージ管理
 ```
 
@@ -38,12 +38,12 @@ Petri net の transition。**solver が探索する。**
 | 記法 | 省略形 | 説明 |
 |---|---|---|
 | `rule` | `rule` | 要件と成果物 |
-| `morph.const` | `const` | 定数束縛。初期マーキング (`() → T`)。再代入不可 |
-| `morph.assign` | `assign` | 変数束縛。token flow (`() → T`)。再代入可 |
+| `rule.const` | `const` | 定数束縛。初期マーキング (`() → T`)。再代入不可 |
+| `rule.assign` | `assign` | 変数束縛。token flow (`() → T`)。再代入可 |
 | `rule.inverse` | `inverse` | 逆射 (枝刈り) |
 | `rule.derives` | `derives` | 既存射からの導出 |
-| `morph.chain` | `handler`/`chain` | 手動経路指定 |
-| `morph.refinement` | `refinement` | 既存 lexicon への制約追加 |
+| `rule.chain` | `handler`/`chain` | 手動経路指定 |
+| `rule.refinement` | `refinement` | 既存 lexicon への制約追加 |
 
 ## constrain (Lex₂): 構造制約
 
@@ -51,11 +51,11 @@ Lex₁ の射を前提として構造的制約を置く。**solver は探索し�
 
 | 記法 | 省略形 | 説明 |
 |---|---|---|
-| `func` | `mapping` | 言語変換規則 |
-| `func.family` | `family` | 型族 (同型演算を共有する閉じた型の集合。vectorize/product の導出元) |
-| `func.law` | `law` | 代数的法則 |
-| `func.dual` | `dual` | 双方向クエリの対称性 |
-| `func.invariant` | `invariant` | 不変量 (count 整合性等) |
+| `constrain.mapping` | `mapping` | 言語変換規則 |
+| `constrain.family` | `family` | 型族 (同型演算を共有する閉じた型の集合。vectorize/product の導出元) |
+| `constrain.law` | `law` | 代数的法則 |
+| `constrain.dual` | `dual` | 双方向クエリの対称性 |
+| `constrain.invariant` | `invariant` | 不変量 (count 整合性等) |
 
 ## package (Lex₃): パッケージ管理
 
@@ -66,25 +66,51 @@ Lex₂ 以下を束ねてパッケージ化する。外部との接続を管理�
 | `pkg.import` | `import` | 外部実装の型境界 |
 | `pkg.cratis` | `cratis` | パッケージ / ワークスペース宣言 |
 
+## meta (Lex₃): ツールメタ
+
+`pkg` と並列の Lex₃ トップノード。laplan ツールが運用上必要とするメタ情報を保存する。本体 `.lex` (ロジック) とは名前空間と物理ファイルで完全分離する。
+
+現在サポートする名前空間:
+
+| nsid プレフィックス | 用途 |
+|---|---|
+| `view.graph.<nsid>` | Petri net ノードグラフの座標・viewport 情報 |
+
+`meta view.graph.<nsid>` は本体 `.lex` のノード座標とビューポート状態を保存する。`refs.target` で本体 nsid を明示的に参照し、リネーム耐性を確保する。
+
+```kdl
+meta "view.graph.car.parse_v1" {
+  refs {
+    target "car.parse_v1"
+  }
+  nodes {
+    node "input.data" x=100 y=50
+  }
+  viewport center-x=200 center-y=50 view-size=400
+}
+```
+
+ファイルは `view/graph/<nsid 相当>.lex` に配置し、本体 `.lex` とディレクトリレベルで分離する。パースは `compiler/ir` の `parse_meta_kdl()` が担当する。詳細は [reference/axiom-view.md](axiom/view.md) を参照してください。
+
 `cratis` は単体パッケージとワークスペースを兼ねる。`members` の有無で判定:
 
 ```kdl
 // 単体パッケージ
 cratis "encrypted-dm" version=1 {
-    provides { ... }
-    requires { ... }
+  provides { ... }
+  requires { ... }
 }
 
 // ワークスペース (members がある)
 cratis "my-app" {
-    members {
-        "atproto-client" path="client/cratis.lex"
-        "atproto-server" path="server/cratis.lex"
-    }
-    faces {
-        face "client" { emit "atproto-client"; axiom "atproto-server" }
-        face "server" { emit "atproto-server"; axiom "atproto-client" }
-    }
+  members {
+    "atproto-client" path="client/cratis.lex"
+    "atproto-server" path="server/cratis.lex"
+  }
+  faces {
+    face "client" { emit "atproto-client"; axiom "atproto-server" }
+    face "server" { emit "atproto-server"; axiom "atproto-client" }
+  }
 }
 ```
 
@@ -97,6 +123,7 @@ cratis "my-app" {
 | solver が遷移として探索するか? | Lex₁ solve (rule) |
 | solver は探索せず、判断材料として使うか? | Lex₂ constrain |
 | パッケージ/外部接続の管理か? | Lex₃ package |
+| ツール運用メタ (座標・viewport 等) か? | Lex₃ meta |
 
 ## axiom/ ディレクトリとの対応
 
@@ -107,15 +134,25 @@ axiom/
   crypto/         Lex₀ + Lex₁
   category/       Lex₂ + Lex₃ (`cratis.lex` が package root、compose/dual/lift は Lex₂)
   algebra/        Lex₀ + Lex₁ + Lex₂ (演算 + family)
-  resolver.lex    Lex₁ (FnExpr KDL。runtime resolver 7 関数)
+  resolver.lex    Lex₁ (FnExpr KDL。runtime resolver 9 関数)
   target/         Lex₂ + Lex₃ (`cratis.lex` が workspace root、配下の `lang/` `binary/` `bind/` も各 `cratis.lex` を持つ)
     lang/           mapping.lex (型対応表) + morph.lex + type.lex
     binary/
     bind/
+  view/           Lex₀ (cratis "view"。Position / Size / graph サブ cratis)
+    graph/          Lex₀ (NodeBox / EdgeRoute / ViewportTransform)
 ```
 
-`resolver.lex` は FnExpr を KDL で直接記述する .lex バリアントです。通常の .lex が lexicon / rule / mapping 等の宣言を扱うのに対し、resolver.lex は `fn` ノードで Lex₁ の関数定義を記述します。`parse_resolver_lex()` が KDL → `Vec<FnDef>` に変換し、lowering 経由で全言語に resolver コードを生成します。詳細は [architecture/ir.md](../architecture/ir.md) の「resolver.lex」節を参照。
+`resolver.lex` は FnExpr を KDL で直接記述する .lex バリアントです。通常の .lex が lexicon / rule 等の宣言を扱うのに対し、resolver.lex は `fn` ノードで Lex₁ の関数定義を記述します。`parse_resolver_lex()` が KDL → `Vec<FnDef>` に変換し、lowering 経由で全言語に resolver コードを生成します。詳細は [architecture/ir.md](../architecture/ir.md) の「resolver.lex」節を参照。
 
 各 `axiom/*/cratis.lex` は Lex₃ の package root で、`axiom/target/cratis.lex` は `lang` `binary` `bind` を束ねる workspace root になります。
 ここでの `provides` は package metadata です。endpoint の読み込みとは独立しています。
 ひとつのディレクトリが複数の層を含むことがあります。層の分離はディレクトリではなくノード prefix で判定します。
+
+## 関連 docs
+
+層と変換の詳細は以下にまとめています。
+
+- [../architecture/ir.md](../architecture/ir.md): Lex₁ (FnExpr) / Lex₂ (Stmt, Expr) の型定義、forward (lowering) と inverse (pattern match + reverse_lower) のパイプライン全景
+- [../architecture/ir-walkthrough.md](../architecture/ir-walkthrough.md): `checkNeeds` / `classifyCandidate` で Lex₀ から各言語 emit までを通しで追う
+- [mapping-template.md](mapping-template.md): mapping.lex の `{name}` placeholder と `«directive»` directive 仕様

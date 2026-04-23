@@ -1,6 +1,6 @@
 # Solver and Type Discipline
 
-The solver explores Petri net reachability from the type declarations in rules. The correctness of the search results depends on whether the type declarations accurately reflect domain constraints. The solver is faithful to the declared world; constraints outside the declarations are not subject to inference.
+The solver explores Petri net reachability from the type declarations in rules. The correctness of the search results depends on whether the type declarations accurately reflect domain constraints. The solver is faithful to the declared world and does not infer constraints beyond what is declared.
 
 This case study covers the technique of eliminating shortcuts (paths shorter than expected) returned by the solver through type refinement.
 
@@ -80,9 +80,9 @@ As a fix, add an evidence type specific to the store operation:
 
 ```kdl
 rule "store_account" {
-    requires output="did"
-    produces output="account"
-    produces output="account-record"    // storage evidence: obtainable only from store
+  requires output="did"
+  produces output="account"
+  produces output="account-record"    // storage evidence: obtainable only from store
 }
 ```
 
@@ -105,9 +105,9 @@ Rather than using shared facts directly, introduce two kinds of endpoint-specifi
 ```kdl
 // Using the shared fact (did) directly allows other endpoints to cut in
 rule "generate_did" {
-    requires output="handle"
-    produces output="did"           // shared fact
-    produces output="created-did"   // semantic fact: this endpoint's context
+  requires output="handle"
+  produces output="did"           // shared fact
+  produces output="created-did"   // semantic fact: this endpoint's context
 }
 ```
 
@@ -115,10 +115,10 @@ rule "generate_did" {
 
 ```kdl
 rule "issue_session_pair_from_account_record" {
-    requires output="account-record"
-    produces output="access-jwt"
-    produces output="refresh-jwt"
-    produces output="create-account-complete"   // completion token
+  requires output="account-record"
+  produces output="access-jwt"
+  produces output="refresh-jwt"
+  produces output="create-account-complete"   // completion token
 }
 ```
 
@@ -141,7 +141,9 @@ Because each rule's requires/produces connects via endpoint-specific facts, othe
 
 ## Trust Boundary for External Dependencies
 
-Storage evidence and semantic facts are what the solver verifies within the category: the type chain inside the category. The outside of the category (axiom) is trusted but not verified.
+> **Terminology:** In this case study, *category* is a working name for the space where the solver verifies reachability. It shares inspiration with category theory but does not follow the strict mathematical definition. The formal name is not yet fixed.
+
+Storage evidence and semantic facts are what the solver verifies: the type chain within the category. The category boundary (axiom) is a trusted premise; the solver accepts it without verification.
 
 | Scope | Solver involvement | Example |
 |---|---|---|
@@ -152,11 +154,11 @@ You can declare that a rule in a category passes through an axiom operation usin
 
 ```kdl
 rule "store_account" {
-    requires output="created-did"
-    requires output="account-create-ready"
-    composed-of "datum.record.create"    // declares axiom dependency
-    produces output="account"
-    produces output="account-record"     // storage evidence
+  requires output="created-did"
+  requires output="account-create-ready"
+  composed-of "datum.record.create"    // declares axiom dependency
+  produces output="account"
+  produces output="account-record"     // storage evidence
 }
 ```
 

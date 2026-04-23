@@ -80,6 +80,8 @@ axiom/target/lang/{lang}/
 | `stub-template` | Stub code |
 | `lowering` | Lowering templates for `fst` / `snd` / `from-maybe`, etc. |
 
+Each section is declared as a dual schema pair of `emit` (forward) and `pattern` (inverse). The forward `template_engine` and the inverse `ast_inverse` pass are both driven from the same mapping.lex declaration.
+
 ### Template Variables
 
 Variables available in mapping.lex string templates:
@@ -124,33 +126,52 @@ Per-language capability levels are listed in [reference/target-languages.md](../
 
 ## Binding Layer
 
-`bind_typescript.rs`, `bind_python.rs`, and `bind_server.rs` (behind the `atproto-server` feature gate) generate language bindings for WASM.
+`bind_typescript.rs` and `bind_python.rs` generate language bindings for WASM.
 
 ```rust
 pub fn generate_typescript_bindings(...) -> TypeScriptBindings;
 pub fn generate_python_bindings(...) -> PythonBindings;
-#[cfg(feature = "atproto-server")]
-pub fn generate_server_bindings(...) -> ServerBindings;
 ```
 
 Templates for bind target languages live under `axiom/target/bind/{lang}/` and are driven by `bind_mapping.rs`.
 
-## Feature Gate: atproto-server
-
-The `atproto-server` feature (enabled by default) isolates AT Protocol server-specific generation.
-
-| Module | Contents |
-|---|---|
-| `server_output.rs` | Server implementation (routes, handlers, bridge traits, chain impls, probe impls) |
-| `execution.rs` | ExecutionNode, ProofWitness |
-| `bind_server.rs` | Server bindings |
-| `package_audit.rs` | Published package audit |
-
-`--no-default-features` enables emit-only builds.
-
 ## Lean Export
 
 `export_lean_from_ir` in `lean_export.rs` converts lexicon IR into Lean 4 `LexiconCode`. This is the connection point with Lean formal verification projects.
+
+## Cross-Boundary Emit
+
+Cross-boundary endpoints branch on `EndpointDiagnosis` (the solver's pre-validation result). `render.rs` receives the output of `diagnose_cross_boundary(face)` and determines output by the following rules.
+
+| EndpointKind | Rust output | TypeScript output |
+|---|---|---|
+| `Matched` | Normal handler with prerequisite guard | Normal handler with prerequisite guard |
+| `MultiPath` | Dispatch function duplicated per alternative | Dispatch function duplicated per alternative |
+| `MissingFact` | Skipped (not emitted) | Declared as `never` type |
+| `PrunedByBoundary` | Skipped | Declared as `never` type |
+| `PrunedByRefinement` | Skipped | Declared as `never` type |
+
+A prerequisite guard is a pre-call chain that satisfies the requires of the target endpoint before it fires. The handler calls the rule sequence stored in `Matched.prerequisites` in order.
+
+`MultiPath` dispatch duplication is implemented in a follow-up phase. Currently, alternatives are enumerated and the dispatch body is split separately.
+
+## Stub Face Validator Emit
+
+For endpoints targeting a `trust="lexicon-only"` stub face, synthesis generates runtime validation code. If the body received at runtime does not match the Lexicon output type, `MismatchError` is returned.
+
+Rust (`rust/mod.rs`):
+
+```rust
+fn validate_runtime_value(schema: &RuntimeSchema, value: &serde_json::Value) -> Result<(), MismatchError>
+```
+
+TypeScript (`backends/generic.rs`):
+
+```typescript
+function validateRuntimeValue(schema: RuntimeSchema, value: unknown): void
+```
+
+The call site is immediately after response parsing in the endpoint handler targeting the stub face. Validators are not generated for endpoints targeting normal faces.
 
 ## Additional Emit
 

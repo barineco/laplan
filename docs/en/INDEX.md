@@ -1,6 +1,6 @@
 # laplan Documentation INDEX
 
-laplan is a Lexicon-based programmable language platform. Declare types and morphisms in KDL, and the Petri net solver finds synthesis paths and generates SDKs for 21 languages plus WASM binaries.
+laplan is a metatype programming language that declares types and relations in KDL format and synthesizes them via Petri net path resolution. From declarations, it generates SDKs for 21 languages and WASM binaries.
 
 ## Document List
 
@@ -14,6 +14,7 @@ laplan is a Lexicon-based programmable language platform. Declare types and morp
 | [architecture/compiler.md](architecture/compiler.md) | WASM binary generation via `compiler/compile`, inverse functor via `compiler/inverse` |
 | [architecture/synthesis.md](architecture/synthesis.md) | Multi-language code generation in `compiler/synthesis`, mapping.lex / morph.lex / type.lex |
 | [architecture/solver.md](architecture/solver.md) | Petri net solver, two-layer structure (morphism / instruction), pruning |
+| [architecture/ir-walkthrough.md](architecture/ir-walkthrough.md) | End-to-end trace of checkNeeds through all layers (forward + inverse) |
 | [architecture/cli.md](architecture/cli.md) | Subcommands and options for the `laplan` binary |
 
 ### Guides
@@ -23,29 +24,39 @@ laplan is a Lexicon-based programmable language platform. Declare types and morp
 | [guide/getting-started.md](guide/getting-started.md) | Installation, first `.lex`, lint / solve / synthesis workflow |
 | [guide/cratis.md](guide/cratis.md) | Writing cratis, provides/requires, workspace cratis, faces |
 | [guide/adding-language.md](guide/adding-language.md) | Steps to add a new language under `axiom/target/lang/` |
-| [guide/wasm-extension.md](guide/wasm-extension.md) | Building the VSCode extension and WASM, Petri net webview |
+| [guide/axiom-bindings.md](guide/axiom-bindings.md) | Swapping axiom implementations per language (`bindings {}` section) |
+| [guide/wasm-extension.md](guide/wasm-extension.md) | Building the VSCode extension and Vue UI, packages/ structure, Petri net webview |
 
 ### Reference
 
 | File | Description |
 |---|---|
 | [reference/layers.md](reference/layers.md) | `.lex` top nodes and Lex₀/₁/₂/₃ layer classification |
-| [reference/axiom-numeric.md](reference/axiom-numeric.md) | `axiom/i32` `axiom/i64` `axiom/f32` `axiom/f64` `axiom/bool` numeric primitives |
-| [reference/axiom-string.md](reference/axiom-string.md) | `axiom/str` `axiom/bytes` strings and byte sequences |
-| [reference/axiom-serialization.md](reference/axiom-serialization.md) | `axiom/json` `axiom/cbor` `axiom/kdl` serialization |
-| [reference/axiom-content-addressing.md](reference/axiom-content-addressing.md) | `axiom/cid` `axiom/car` content addressing |
-| [reference/axiom-crypto.md](reference/axiom-crypto.md) | `axiom/crypto` hashing, signing, key derivation |
-| [reference/axiom-algebra.md](reference/axiom-algebra.md) | `axiom/algebra` algebraic structures and family (product, vectorize) |
-| [reference/axiom-category.md](reference/axiom-category.md) | `axiom/category` category theory primitives (compose, dual, lift) |
-| [reference/axiom-memory.md](reference/axiom-memory.md) | `axiom/memory` memory model |
+| [reference/mapping-template.md](reference/mapping-template.md) | mapping.lex `{name}` placeholder and `«directive»` directive specification |
+| [reference/axiom/numeric.md](reference/axiom/numeric.md) | `axiom/i32` `axiom/i64` `axiom/f32` `axiom/f64` `axiom/bool` numeric primitives |
+| [reference/axiom/string.md](reference/axiom/string.md) | `axiom/str` `axiom/bytes` strings and byte sequences |
+| [reference/axiom/serialization.md](reference/axiom/serialization.md) | `axiom/json` `axiom/cbor` `axiom/kdl` serialization |
+| [reference/axiom/content-addressing.md](reference/axiom/content-addressing.md) | `axiom/cid` `axiom/car` content addressing |
+| [reference/axiom/crypto.md](reference/axiom/crypto.md) | `axiom/crypto` hashing, signing, key derivation |
+| [reference/axiom/algebra.md](reference/axiom/algebra.md) | `axiom/algebra` algebraic structures and family (product, vectorize) |
+| [reference/axiom/category.md](reference/axiom/category.md) | `axiom/category` category theory primitives (compose, dual, lift) |
+| [reference/axiom/memory.md](reference/axiom/memory.md) | `axiom/memory` memory model |
+| [reference/axiom/view.md](reference/axiom/view.md) | `axiom/view` graph UI type declarations (Position / Size / NodeBox / EdgeRoute / ViewportTransform) |
 | [reference/generated-output-licenses.md](reference/generated-output-licenses.md) | MIT / MPL-2.0 boundaries per generated output |
 | [reference/target-languages.md](reference/target-languages.md) | Capability levels, type mapping tables, and category classification for 21 languages |
+| [reference/rule-lex-residuals.md](reference/rule-lex-residuals.md) | Annotated list of special-calls remaining in `rule.lex` |
 
 ### Case Studies
 
 | File | Description |
 |---|---|
 | [case/solver-type-discipline.md](case/solver-type-discipline.md) | Eliminating solver shortcuts through type refinement. Storage evidence types, semantic facts, completion tokens |
+
+### Other
+
+| File | Description |
+|---|---|
+| [faq.md](faq.md) | Frequently asked questions. Petri net rationale, solver operation, language support, licensing, etc. |
 
 ## By Task
 
@@ -71,11 +82,14 @@ laplan is a Lexicon-based programmable language platform. Declare types and morp
 |---|---|
 | Write the first `.lex` and solve | [getting-started](guide/getting-started.md), [cli](architecture/cli.md) |
 | Use lint / solve commands | [cli](architecture/cli.md) |
+| Generate `.lex` from existing code | [cli](architecture/cli.md) (`invert` subcommand), [compiler](architecture/compiler.md) ("laplan-inverse" section) |
 | Define a cratis | [cratis](guide/cratis.md), [layers](reference/layers.md) |
-| Check which cratis an axiom belongs to | [cratis](guide/cratis.md), [axiom-crypto](reference/axiom-crypto.md), [axiom-algebra](reference/axiom-algebra.md) |
-| Add an operation to an axiom | [ir](architecture/ir.md), [synthesis](architecture/synthesis.md), [axiom-algebra](reference/axiom-algebra.md) |
+| Check which cratis an axiom belongs to | [cratis](guide/cratis.md), [axiom-crypto](reference/axiom/crypto.md), [axiom-algebra](reference/axiom/algebra.md) |
+| Add an operation to an axiom | [ir](architecture/ir.md), [synthesis](architecture/synthesis.md), [axiom-algebra](reference/axiom/algebra.md) |
+| Swap an axiom implementation for another package | [axiom-bindings](guide/axiom-bindings.md) |
 | Add a new language | [adding-language](guide/adding-language.md), [synthesis](architecture/synthesis.md) |
-| Work with the VSCode extension | [wasm-extension](guide/wasm-extension.md) |
+| Work with the VSCode extension / Vue UI | [wasm-extension](guide/wasm-extension.md) |
+| Check graph UI type declarations | [axiom-view](reference/axiom/view.md), [layers](reference/layers.md) |
 
 ### Modify
 
@@ -102,25 +116,27 @@ laplan is a Lexicon-based programmable language platform. Declare types and morp
 | `compiler/inverse` (laplan-inverse) | [compiler](architecture/compiler.md) |
 | `compiler/cli` (laplan) | [cli](architecture/cli.md) |
 | `extension/` (VSCode extension) | [wasm-extension](guide/wasm-extension.md) |
+| `packages/` (UI monorepo) | [wasm-extension](guide/wasm-extension.md) |
 | `vendored-json/` | [parser](architecture/parser.md) |
 
 ### axiom → docs
 
 | Directory | Primary References |
 |---|---|
-| `axiom/i32`, `axiom/i64`, `axiom/f32`, `axiom/f64`, `axiom/bool` | [axiom-numeric](reference/axiom-numeric.md) |
-| `axiom/str`, `axiom/bytes` | [axiom-string](reference/axiom-string.md) |
-| `axiom/json`, `axiom/cbor`, `axiom/kdl` | [axiom-serialization](reference/axiom-serialization.md) |
-| `axiom/cid`, `axiom/car` | [axiom-content-addressing](reference/axiom-content-addressing.md) |
-| `axiom/crypto` | [axiom-crypto](reference/axiom-crypto.md) |
-| `axiom/algebra` | [axiom-algebra](reference/axiom-algebra.md) |
-| `axiom/category` | [axiom-category](reference/axiom-category.md) |
-| `axiom/memory` | [axiom-memory](reference/axiom-memory.md) |
+| `axiom/i32`, `axiom/i64`, `axiom/f32`, `axiom/f64`, `axiom/bool` | [axiom-numeric](reference/axiom/numeric.md) |
+| `axiom/str`, `axiom/bytes` | [axiom-string](reference/axiom/string.md) |
+| `axiom/json`, `axiom/cbor`, `axiom/kdl` | [axiom-serialization](reference/axiom/serialization.md) |
+| `axiom/cid`, `axiom/car` | [axiom-content-addressing](reference/axiom/content-addressing.md) |
+| `axiom/crypto` | [axiom-crypto](reference/axiom/crypto.md) |
+| `axiom/algebra` | [axiom-algebra](reference/axiom/algebra.md) |
+| `axiom/category` | [axiom-category](reference/axiom/category.md) |
+| `axiom/memory` | [axiom-memory](reference/axiom/memory.md) |
 | `axiom/resolver.lex` | [ir](architecture/ir.md) ("resolver.lex" section), [layers](reference/layers.md) |
 | `axiom/target/lang` | [synthesis](architecture/synthesis.md), [target-languages](reference/target-languages.md), [adding-language](guide/adding-language.md) |
 | `axiom/target/bind` | [synthesis](architecture/synthesis.md) |
 | `axiom/target/binary` | [compiler](architecture/compiler.md) |
 | `axiom/solve` | [solver](architecture/solver.md) |
+| `axiom/view` | [axiom-view](reference/axiom/view.md) |
 
 ### Change Area → Impact Scope
 
@@ -128,10 +144,10 @@ An index for identifying which docs and downstream projects (such as neco-atprot
 
 | Change Area | laplan docs | Downstream docs |
 |---|---|---|
-| axiom/ (adding types, morphisms, constraints) | Relevant [axiom-*](reference/axiom-algebra.md) files | neco-atproto `guide/codegen.md`, `architecture/crate-map.md` |
+| axiom/ (adding types, morphisms, constraints) | Relevant [axiom-*](reference/axiom/algebra.md) files | neco-atproto `guide/codegen.md`, `architecture/crate-map.md` |
 | axiom/target/lang/ (mapping changes) | [synthesis](architecture/synthesis.md), [target-languages](reference/target-languages.md) | neco-atproto `guide/{lang}.md` |
-| solver (search improvements) | [solver](architecture/solver.md) | neco-atproto `protocol/04-lexicon.md`, `architecture/overview.md` |
-| synthesis output format | [synthesis](architecture/synthesis.md) | neco-atproto all `guide/{lang}.md` |
+| solver (search improvements, joint solve) | [solver](architecture/solver.md) | neco-atproto `protocol/04-lexicon.md`, `architecture/overview.md` |
+| synthesis output format (cross-boundary emit / stub validator) | [synthesis](architecture/synthesis.md) | neco-atproto all `guide/{lang}.md` |
 | inverse (functor) coverage | [compiler](architecture/compiler.md), [cli](architecture/cli.md) | neco-atproto `development/` inverse conversion verification |
 | cratis structure | [cratis](guide/cratis.md), [layers](reference/layers.md) | neco-atproto `protocol/04-lexicon.md`, `architecture/overview.md` |
 | CLI subcommands | [cli](architecture/cli.md) | neco-atproto `guide/codegen.md` |

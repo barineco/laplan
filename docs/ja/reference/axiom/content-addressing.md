@@ -42,7 +42,7 @@ CAR (Content Addressable aRchives): 複数ブロックを 1 ファイルにま�
 
 ## 依存関係
 
-- `bytes` axiom に依存 ([axiom-string](axiom-string.md))
-- `cbor` axiom と組合せて DAG-CBOR を介した determinism を提供 ([axiom-serialization](axiom-serialization.md))
+- `bytes` axiom に依存 ([axiom-string](axiom/string.md))
+- `cbor` axiom と組合せて DAG-CBOR を介した determinism を提供 ([axiom-serialization](axiom/serialization.md))
 - 実装は [neco-cid](https://github.com/barineco/neco-crates/tree/main/neco-cid), [neco-car](https://github.com/barineco/neco-crates/tree/main/neco-car) (morph.lex で解決)
 - AT Protocol の MST (Merkle Search Tree) / firehose / repository 等のユースケースに対応

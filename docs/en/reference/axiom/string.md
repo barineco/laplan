@@ -41,11 +41,11 @@ Axiom for strings and byte sequences. Covers `axiom/str` and `axiom/bytes`.
 | `str.patch.validate` | Validation |
 | `str.patch.inverse` | Inverse transformation |
 
-### `fuzzy.lex`: Fuzzy Search
+### `fuzzy.lex`: fuzzy search
 
 | Declaration | Purpose |
 |---|---|
-| `str.fuzzy.score` | Fuzzy score |
+| `str.fuzzy.score` | fuzzy score |
 | `str.fuzzy.match_indices` | Match positions |
 
 ### `path.lex`: Path Operations

@@ -61,7 +61,7 @@ Assumes memory-hard algorithms such as Argon2id (language implementations specif
 
 ## vault (`axiom/crypto/vault.lex`)
 
-Key management. Stateful vault handles stay outside Lex₀; key material crosses boundaries as `bytes`.
+Key management. Stateful vault handles belong to Lex₃ (not Lex₀); key material crosses boundaries as `bytes`.
 
 | Declaration | Input | Output |
 |---|---|---|
@@ -80,6 +80,6 @@ Key management. Stateful vault handles stay outside Lex₀; key material crosses
 
 ## Dependencies
 
-- `bytes` axiom ([axiom-string](axiom-string.md)).
+- `bytes` axiom ([axiom-string](axiom/string.md)).
 - Implementations are [`neco-sha2`](https://github.com/barineco/neco-crates/tree/main/neco-sha2), [`neco-sha1`](https://github.com/barineco/neco-crates/tree/main/neco-sha1), [`neco-secp`](https://github.com/barineco/neco-crates/tree/main/neco-secp), [`neco-p256`](https://github.com/barineco/neco-crates/tree/main/neco-p256), [`neco-galois`](https://github.com/barineco/neco-crates/tree/main/neco-galois), [`neco-vault`](https://github.com/barineco/neco-crates/tree/main/neco-vault), etc. (resolved per language in morph.lex).
 - General-purpose cryptographic primitives, not AT Protocol-specific.

@@ -80,6 +80,8 @@ axiom/target/lang/{lang}/
 | `stub-template` | スタブコード |
 | `lowering` | `fst` / `snd` / `from-maybe` 等の lowering テンプレート |
 
+各セクションは `emit` (forward) と `pattern` (inverse) の対 (dual schema) として宣言されています。forward の template_engine と inverse の ast_inverse pass が同一の mapping.lex 宣言から駆動されます。
+
 ### template 変数
 
 mapping.lex の文字列テンプレートで使える変数:
@@ -124,33 +126,52 @@ Lex₂ パスは lowering による自動生成のみで構成されます。res
 
 ## binding 層
 
-`bind_typescript.rs`, `bind_python.rs`, `bind_server.rs` (atproto-server feature gate) が WASM に対する言語バインディングを生成します。
+`bind_typescript.rs`, `bind_python.rs` が WASM に対する言語バインディングを生成します。
 
 ```rust
 pub fn generate_typescript_bindings(...) -> TypeScriptBindings;
 pub fn generate_python_bindings(...) -> PythonBindings;
-#[cfg(feature = "atproto-server")]
-pub fn generate_server_bindings(...) -> ServerBindings;
 ```
 
 bind 対象言語のテンプレートは `axiom/target/bind/{lang}/` に置かれ、`bind_mapping.rs` で駆動されます。
 
-## feature gate: atproto-server
-
-`atproto-server` feature (デフォルト有効) は AT Protocol サーバ固有の生成を隔離します。
-
-| モジュール | 内容 |
-|---|---|
-| `server_output.rs` | サーバ実装 (routes, handlers, bridge traits, chain impls, probe impls) |
-| `execution.rs` | ExecutionNode, ProofWitness |
-| `bind_server.rs` | server 用バインディング |
-| `package_audit.rs` | 公開パッケージの audit |
-
-`--no-default-features` で emit 専用ビルドが可能です。
-
 ## Lean エクスポート
 
 `lean_export.rs` の `export_lean_from_ir` が、lexicon IR を Lean 4 の `LexiconCode` に変換します。Lean 形式検証プロジェクトとの接続点です。
+
+## cross-boundary emit
+
+cross-boundary endpoint は `EndpointDiagnosis` (solver の診断結果) に基づいて emit 分岐します。`render.rs` が `diagnose_cross_boundary(face)` の結果を受け取り、以下の方針で出力を決定します。
+
+| EndpointKind | Rust の出力 | TypeScript の出力 |
+|---|---|---|
+| `Matched` | prerequisite guard 付き通常 handler | prerequisite guard 付き通常 handler |
+| `MultiPath` | alternative ごとに dispatch 関数を複製 | alternative ごとに dispatch 関数を複製 |
+| `MissingFact` | skip (emit しない) | `never` 型として宣言 |
+| `PrunedByBoundary` | skip | `never` 型として宣言 |
+| `PrunedByRefinement` | skip | `never` 型として宣言 |
+
+prerequisite guard とは、目標 endpoint の発火前に requires を満たすための事前 call chain です。`Matched.prerequisites` に格納された rule 列をハンドラの前に順に呼び出します。
+
+`MultiPath` の dispatch 複製は follow-up フェーズで実装します。現時点では alternative の列挙まで行い、dispatch 本体は別途分離されます。
+
+## stub face validator emit
+
+`trust="lexicon-only"` の stub face に向けた endpoint では、synthesis が runtime 検証コードを生成します。runtime で受信した body が Lexicon output の型と合わない場合に `MismatchError` を返します。
+
+Rust の場合 (`rust/mod.rs`):
+
+```rust
+fn validate_runtime_value(schema: &RuntimeSchema, value: &serde_json::Value) -> Result<(), MismatchError>
+```
+
+TypeScript の場合 (`backends/generic.rs`):
+
+```typescript
+function validateRuntimeValue(schema: RuntimeSchema, value: unknown): void
+```
+
+呼び出し箇所は stub face を対象とする endpoint ハンドラの response parsing の直後です。通常 face を対象とする endpoint には validator は生成されません。
 
 ## 追加の emit
 

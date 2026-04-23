@@ -22,15 +22,15 @@ WASM 32-bit アドレス空間 (`ptr: i32`) への load / store プリミティ�
 
 ```kdl
 derives "array.len" via memory_access {
-    op "load"
-    opcode "i32.load"
-    offset "ptr"
+  op "load"
+  opcode "i32.load"
+  offset "ptr"
 }
 
 derives "array.get_f64" via memory_access {
-    op "load"
-    opcode "f64.load"
-    offset "i32.add(i32.add(ptr, 4), i32.mul(index, 8))"
+  op "load"
+  opcode "f64.load"
+  offset "i32.add(i32.add(ptr, 4), i32.mul(index, 8))"
 }
 ```
 
@@ -50,6 +50,6 @@ derives "array.get_f64" via memory_access {
 
 ## 依存関係
 
-- `i32`, `i64`, `f32`, `f64` axiom ([axiom-numeric](axiom-numeric.md))
+- `i32`, `i64`, `f32`, `f64` axiom ([axiom-numeric](axiom/numeric.md))
 - WASM バイナリ emit ([architecture/compiler.md](../architecture/compiler.md)) と協調
 - opcode mapping は `ir::mapping::parse_wasm_mapping_kdl` が読む

@@ -40,6 +40,6 @@
 ## 依存関係
 
 - [neco-json](https://github.com/barineco/neco-crates/tree/main/neco-json), [neco-cbor](https://github.com/barineco/neco-crates/tree/main/neco-cbor), [neco-kdl](https://github.com/barineco/neco-crates/tree/main/neco-kdl) (morph.lex で各言語実装を指定)
-- `bytes` axiom に依存 ([axiom-string](axiom-string.md))
-- `cid`, `car` から DAG-CBOR 経由で利用される ([axiom-content-addressing](axiom-content-addressing.md))
+- `bytes` axiom に依存 ([axiom-string](axiom/string.md))
+- `cid`, `car` から DAG-CBOR 経由で利用される ([axiom-content-addressing](axiom/content-addressing.md))
 - 言語別の実装差し替えについては [axiom-bindings](../guide/axiom-bindings.md) を参照

@@ -56,7 +56,7 @@
 | Lex₀ (type) | `type i32`, `type i64`, `type f32`, `type f64`, `type bool` |
 | Lex₀ (lexicon) | `lex i32.add { procedure { input; output } }` 等 |
 | Lex₁ (morphism) | 各演算の射 (solver が探索) |
-| Lex₂ (family) | [axiom-algebra](axiom-algebra.md) で SIMD / product family を導出 |
+| Lex₂ (family) | [axiom-algebra](axiom/algebra.md) で SIMD / product family を導出 |
 
 ## 依存関係
 

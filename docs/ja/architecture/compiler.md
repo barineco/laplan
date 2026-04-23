@@ -121,52 +121,83 @@ CLI フラグとの対応:
 
 ## laplan-inverse: 逆関手
 
-逆関手は「生成コード → `.lex` スケルトン」を取り出し、往復変換 (roundtrip) で設計の妥当性を検証します。現状は 3 層構造で、対応範囲が層ごとに異なります。
+逆関手は「生成コード → `.lex` スケルトン」を取り出し、往復変換 (roundtrip) で設計の妥当性を検証します。`ast_inverse/` + `wasm/` の 2 経路を `emit.rs` が `.lex` テキストに落とし、`equiv.rs` が論理等価を判定します。
 
 ```
 compiler/inverse/src/
-├── extract.rs           # Rust ソースの pub API 抽出 (syn, Rust 固有)
-├── convert.rs           # PublicApi → LexiconIr スケルトン (Rust 固有)
-├── emit.rs              # LexiconIr → .lex テキスト (言語非依存)
-├── template_inverter.rs # mapping.lex テンプレートの逆適用 (言語非依存)
-├── inverse_type_table.rs
-├── wasm_read.rs         # WASM Type/Import/Export セクション解析
-├── wasm_inverse.rs      # WASM 型 → Lexicon 型
-└── roundtrip_tests.rs
+├── lib.rs                       # 公開入口 + 再 export
+├── source.rs                    # SourceFile, InverseOutput, InverseWarning (共通型)
+├── equiv.rs                     # LexiconIr 論理等価判定 (roundtrip テスト用)
+├── emit.rs                      # .lex テキスト生成 (言語非依存)
+├── ast_inverse/                 # 21 言語共通の AST inverse pass
+│   ├── engine.rs                # AST pattern matcher + body 再帰 matcher
+│   │                            # + 制御構造 parser (if/for/while/match)
+│   │                            # + Expr 構造化 parser (method chain / match / if-let-test / guarded pattern)
+│   ├── mapping_driver.rs        # mapping.lex の pattern セクション駆動 adapter
+│   │                            # (control / variable / handler / endpoint / functional)
+│   ├── type_table.rs            # InverseTypeTable (type_map 逆引き)
+│   ├── product.rs / sum.rs / alias.rs
+│   ├── control.rs               # if/for/fn/module/match
+│   ├── variable.rs              # binding/mutable-binding/assign/return
+│   ├── handler.rs               # endpoint handler (body: Vec<Stmt> 保持)
+│   └── rule_chain.rs            # rule precondition / chain morphism
+└── wasm/                        # WASM 固有 (セクション直読み)
+    ├── read.rs                  # WASM Type/Import/Export セクション解析
+    └── inverse.rs               # WASM 型 → Lexicon 型
 ```
 
-### 責務の 3 層
+### 責務の 2 経路
 
-| 層 | 入力 | 方式 | 対応範囲 |
+| 経路 | 入力 | 方式 | 対応範囲 |
 |---|---|---|---|
-| 型宣言の逆変換 (product / sum / alias) | 生成コード | mapping.lex の `syntax {}` を正規表現化して逆適用 | **mapping.lex を持つ全言語** (宣言駆動) |
-| 関数 / trait / impl メソッド抽出 | Rust ソース | `syn` で AST 解析 | Rust のみ (Rust 固有) |
-| WASM バイナリ → 型復元 | `.wasm` | セクション直読み | WASM 独立 |
+| AST inverse pass (`ast_inverse/`) | 生成ソース | `engine.rs` が FnExpr / Stmt / Expr パターンを逆引きし、`mapping_driver.rs` が mapping.lex の `syntax` + `expr` dual schema を駆動 | **全 21 言語** (mapping.lex 駆動) |
+| WASM バイナリ → 型復元 (`wasm/`) | `.wasm` | セクション直読み | WASM 独立 |
 
-`template_inverter.rs` の `TemplateInverter::new(syntax, type_table)` は `MappingSyntax` を受け取る宣言駆動の実装で、`extract_product` / `extract_sum` / `extract_alias` が全 21 言語で動作します。tests でも `make_rust_inverter()` / `make_python_inverter()` の両方が存在します。
+`ast_inverse` は `product` / `sum` / `alias` の型宣言復元に加え、`control` / `variable` / `handler` / `rule_chain` の pass で endpoint / rule-guard / chain / const / assign を復元します。`mapping_driver` registry が control / variable / handler / endpoint / functional の 5 ドライバを mapping.lex の pattern セクションから駆動します。`equiv.rs` の `assert_lex_equivalent` が roundtrip テストでの論理等価判定を担います。
 
 ### 公開入口
 
 ```rust
-pub fn generate_inverse_output(
+// 言語非依存入口 (21 言語 + wasm で動作)
+pub fn invert_source_to_lex(
+    target: &str,
+    mapping: &Mapping,
+    sources: &[SourceFile],
+    namespace: &str,
+) -> Result<InverseOutput, InverseError>;
+
+// Rust 向け thin wrapper (`invert_source_to_lex("rust", ...)` を呼ぶ)
+pub fn invert_rust_crate(
     crate_src_dir: &Path,
+    mapping: &Mapping,
     namespace: &str,
     type_table: &InverseTypeTable,
-) -> Result<InverseOutput, String>;
+) -> Result<InverseOutput, InverseError>;
+
+// WASM 入口
+pub fn invert_wasm_binary(
+    wasm_bytes: &[u8],
+    namespace: &str,
+) -> Result<InverseOutput, InverseError>;
 ```
 
-処理の流れ:
+`invert_source_to_lex` の引数に `Mapping` を渡す設計は `inverse → synthesis` の循環依存を避けるためです。CLI 側が `cached_mapping(target)` を呼んで inverse に渡します。
 
-1. `collect_rust_source_files(crate_src_dir)` が Rust ソースを走査
-2. `extract_public_api_with_source_name` が `syn` で pub 関数と型を抽出
-3. `convert` が PublicApi を LexiconIr スケルトンに変換
-4. `emit_lex_with_warnings` が `.lex` テキストを生成 (warnings を付随)
+### body 構造化と `Stmt::Raw` fallback
 
-出力には `INVERSE_HEADER` (→ [parser.md](parser.md)) が自動付与されます。
+`handler.rs` が復元する handler の body は `Vec<Stmt>` で保持します。意味論抽出は以下の 3 層で構成されます。
+
+1. `engine.rs` の body 再帰 matcher が mapping.lex の `stmt {}` / `pattern {}` セクションを駆動し、statement ごとに pattern マッチを試みる
+2. pattern で拾えない `if` / `for` / `while` / `match` は engine 内の制御構造 parser が構造化する (`parse_if_like` / `parse_for_like` / `parse_while_like` / `parse_match_like`)
+3. Expr 構造化 parser (`structure_expr`) が let 右辺や cond を `Expr::MethodChain` / `Expr::Match` / `Expr::IfElse` / `Expr::IfLetTest` / `Expr::Construct` / `Expr::FieldAccess` / `Expr::Call` に昇格する
+
+いずれでも構造化できない断片は `Stmt::Raw(String)` / `Expr::Raw(String)` / `Pattern::Raw(String)` に落とし、artifact 上で未対応箇所として可視化します。shortcut としての `body_raw: String` は持たず、失敗は常に Raw variant として表面化する設計です。
+
+engine の stmt 境界検出は `(` / `{` / `[` のネスト深度追跡を伴い、`Self { ... }` / `Ok(Enum::Variant { ... })` / `match x { ... }` のような閉じた block を含む expression-stmt を単一 stmt として捉えます。body 構造化前段で `strip_comments` が行 `//` と block `/* */` を除去し、string literal 内の `//` は文字列追跡で除外します (doc comment `///` `//!` は field-doc 経路で保持)。`structure_expr` は mapping.lex `expr.variant.{construct-self, result-ok, result-err}` 経由で `Self { ... }` / `Ok(...)` / `Err(...)` を `Expr::Construct` に昇格し、`parse_let_complex` は let RHS が `match` / `if-else` の場合に `Expr::Match` / `Expr::IfElse` へ、let LHS が `StructName { f1, f2 }` の場合に `Pattern::Struct` へ構造化します。trait 定義 body は `body_contains_implementation` 判定で signature-only を識別し、空 body の handler として扱います。
 
 ### 対応範囲
 
-型宣言レベルの逆変換 (product / sum / alias) は mapping.lex 駆動で全 21 言語に対応しています。公開入口は Rust ソースのみを受け付けます。
+逆変換は全 21 言語で mapping.lex 駆動に統一されています。`invert_source_to_lex` が言語非依存の入口で、`invert_rust_crate` は `invert_source_to_lex("rust", ...)` を呼ぶ thin wrapper です。`ast_inverse/` の各 pass が mapping.lex の `syntax` セクション + `expr {}` dual schema (pattern 記述) を読んで product / sum / alias / endpoint / rule-guard / chain / const / assign を復元します。
 
 ### 逆変換対象の構造カテゴリ
 
@@ -174,7 +205,7 @@ pub fn generate_inverse_output(
 
 | .lex 構造 | 言語側の出力 | 復元経路 |
 |---|---|---|
-| `type` | 組込型参照 | mapping.lex の `type_map` 逆引き |
+| `type` | 組込型参照 | `ast_inverse::type_table` が mapping.lex の `type_map` を逆引き |
 | `lexicon` (procedure / query / subscription) | endpoint ハンドラ関数 / trait メソッド | mapping.lex `handler {}` セクション逆引き |
 | `lexicon` (object / record) | struct / data class | `syntax { product }` 逆引き |
 | sum / union | enum / sealed / tagged union | `syntax { sum }` 逆引き |
@@ -182,9 +213,9 @@ pub fn generate_inverse_output(
 | `rule` の条件制約 | if / match / guard / precondition | `control { if }` / handler の guard-prefix 逆引き |
 | `morph.chain` | 関数合成 / pipeline / method chain | `control { fn }` + chain-step テンプレート逆引き |
 | `const` / `assign` | 定数 / 可変束縛 | `variable { binding, mutable-binding }` 逆引き |
-| `func.law` / `dual` / `invariant` | 通常コードに現れない | 対象外 (warning として明示) |
+| `func.law` / `dual` / `invariant` | 通常コードに現れない | 逆変換なし (warning で報告) |
 
-`TemplateInverter` が対応するのは product / sum / alias の 3 カテゴリです。endpoint / rule-guard / chain / const / assign の逆変換は `InverseWarning` として報告されます。
+`ast_inverse` は product / sum / alias / endpoint / rule-guard / chain / const / assign の全カテゴリを 21 言語で対応します。復元できなかった構造は `InverseWarning` として報告されます。
 
 ### roundtrip テスト
 
