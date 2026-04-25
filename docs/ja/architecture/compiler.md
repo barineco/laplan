@@ -213,7 +213,7 @@ engine の stmt 境界検出は `(` / `{` / `[` のネスト深度追跡を伴�
 | `rule` の条件制約 | if / match / guard / precondition | `control { if }` / handler の guard-prefix 逆引き |
 | `morph.chain` | 関数合成 / pipeline / method chain | `control { fn }` + chain-step テンプレート逆引き |
 | `const` / `assign` | 定数 / 可変束縛 | `variable { binding, mutable-binding }` 逆引き |
-| `func.law` / `dual` / `invariant` | 通常コードに現れない | 逆変換なし (warning で報告) |
+| `func.law` / `dual` / `invariant` | 通常コードに現れない | 対象外 (warning として明示) |
 
 `ast_inverse` は product / sum / alias / endpoint / rule-guard / chain / const / assign の全カテゴリを 21 言語で対応します。復元できなかった構造は `InverseWarning` として報告されます。
 

@@ -40,31 +40,6 @@ laplan supports SDK synthesis for 21 languages. Language templates are placed un
 
 laplan synthesis provides stable output through L3 recipe. L4 solver support coverage varies per language. L1-inv is supported for all 21 languages. `ast_inverse` auto-derives the inverse from the `syntax {}` section (product / sum / alias) and the pattern descriptions in the `expr {}` dual schema of mapping.lex, recovering type declarations without per-language implementation.
 
-## L3 Recipe Manifest Implementation Status
-
-Implementation status of `runtime-solve-*` keys (recipe manifest + dispatch generation) in each language's `mapping.lex`. This is the basis for L3 capability assessment.
-
-| runtime-solve-* key count | Languages |
-|---:|---|
-| 4 | java |
-| 3 | cpp, csharp, go, haskell, lua |
-| 2 | clojure, d, elixir, kotlin, php, rust |
-| 1 | dart, gleam, ocaml, ruby, swift, zig |
-| 0 | javascript, python, typescript (complemented via WASM binding path) |
-
-Relevant keys include `runtime-solve-filename` / `runtime-solve-header` / `runtime-solve-module-name`. The 3 languages with zero keys (javascript / python / typescript) currently lack recipe manifest generation; their Inv-4 L3 level passing remains at 0. The WASM binding paths (`axiom/target/bind/wasmPython`, `axiom/target/bind/wasmTypescript`) provide a complementary design.
-
-## Bindings Section Implementation Status
-
-Implementation status of the `bindings {}` section (connecting axiom morphisms to external crates / functions):
-
-| Bindings status | Languages |
-|---|---|
-| Implemented (20 languages) | clojure, cpp, csharp, d, dart, elixir, gleam, go, haskell, java, javascript, kotlin, lua, ocaml, php, python, ruby, rust, swift, typescript |
-| Not implemented (1 language) | **zig** |
-
-Only zig lacks a `bindings {}` section, leaving the axiom external connection path unestablished. Establishing bindings across all 21 languages is a prerequisite for Inv-5 (dual schema symmetry).
-
 ## Body Structuring Coverage
 
 Body semantic extraction (`Stmt::Raw` fallback residual rate) during inverse conversion is supported as follows. The `ast_inverse` engine drives the `stmt {}` and `pattern {}` sections of mapping.lex and surfaces unstructurable fragments as `Stmt::Raw` / `Expr::Raw` / `Pattern::Raw`.
@@ -73,7 +48,7 @@ Body semantic extraction (`Stmt::Raw` fallback residual rate) during inverse con
 |---|---|---|
 | Full | Rust | Reference language. `stmt {}` and `pattern {}` sections are written in full; iterator idiom, if-let, match, and method chain are all structured. |
 | Minimal | Other 20 languages | `stmt {}` covers `let-binding` / `return` / `assign-stmt` / `method-call-stmt` uniformly. Control-flow structuring is handled by the language-agnostic parser in engine. |
-| Not measured | Clojure | S-expression macro-expanded form; body structuring and parity measurement do not apply. |
+| Excluded | Clojure | S-expression macro-expanded form; outside the scope of body structuring and parity measurement. |
 
 The 21-language aggregate body-structuring rate is monitored by `multilang_body_structuring.rs`. Residual rate decreases as each language's `stmt {}` / `pattern {}` sections are strengthened.
 

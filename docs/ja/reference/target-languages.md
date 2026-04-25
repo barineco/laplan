@@ -50,7 +50,7 @@ laplan の synthesis は L3 recipe までを安定供給し、L4 solver は言�
 | 3 | cpp, csharp, go, haskell, lua |
 | 2 | clojure, d, elixir, kotlin, php, rust |
 | 1 | dart, gleam, ocaml, ruby, swift, zig |
-| 0 | javascript, python, typescript (WASM binding 経路で補完する設計) |
+| 0 | javascript, python, typescript (※ WASM binding 経路で別途対応予定) |
 
 `runtime-solve-filename` / `runtime-solve-header` / `runtime-solve-module-name` 等のキーが該当。キー数ゼロの 3 言語 (javascript / python / typescript) は現状 recipe manifest 生成未対応で、Inv-4 L3 level (統合 spec 参照) の passing は 0 のまま。WASM binding 経路 (`axiom/target/bind/wasmPython`, `axiom/target/bind/wasmTypescript`) で補完する設計は別途検討中。
 
@@ -73,7 +73,7 @@ zig のみ `bindings {}` セクション未実装で、axiom の外部接続経�
 |---|---|---|
 | 完全 | Rust | reference 言語。`stmt {}` / `pattern {}` セクションをフル記述、iterator idiom / if-let / match / method chain を構造化 |
 | 最小カバー | 他 20 言語 | `stmt {}` に `let-binding` / `return` / `assign-stmt` / `method-call-stmt` を横断整備。制御構造は engine の言語非依存 parser が担当 |
-| 計測なし | Clojure | S 式 macro 展開形のため body 構造化と parity 計算を適用しない |
+| 除外 | Clojure | S 式 macro 展開形のため body 構造化と parity 計算の対象外 |
 
 21 言語合算の body 構造化率は `multilang_body_structuring.rs` が監視します。各言語 mapping.lex の `stmt {}` / `pattern {}` セクションを補強することで残存率を下げられます。
 

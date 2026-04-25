@@ -27,5 +27,5 @@
 
 - `callCheckNeeds`: call-open + modifier tag (await/try/sync) を `MethodCall` に付随させて mapping.lex `expr.library-call` へ移行する案
 - `guard.error-type`: 型名 map を mapping.lex `type-map {}` に移す案 (現状は `guard {}` セクション内に meta として保持)
-- `guard.capability-check` / `guard.ownership-check`: 前置詞 tag の導入により mapping.expr に集約できる余地あり
+- `guard.capability-check` / `guard.ownership-check`: 前置詞 tag の導入により mapping.expr に寄せる余地あり
 - rust 固有 `resolve` / `loadRecipes`: cratis runtime-imports を axiom 本体へ昇格すれば吸収可能

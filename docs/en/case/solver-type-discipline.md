@@ -1,6 +1,6 @@
 # Solver and Type Discipline
 
-The solver explores Petri net reachability from the type declarations in rules. The correctness of the search results depends on whether the type declarations accurately reflect domain constraints. The solver is faithful to the declared world and does not infer constraints beyond what is declared.
+The solver explores Petri net reachability from the type declarations in rules. The correctness of the search results depends on whether the type declarations accurately reflect domain constraints. The solver is faithful to the declared world; constraints outside the declarations are not subject to inference.
 
 This case study covers the technique of eliminating shortcuts (paths shorter than expected) returned by the solver through type refinement.
 
@@ -141,9 +141,7 @@ Because each rule's requires/produces connects via endpoint-specific facts, othe
 
 ## Trust Boundary for External Dependencies
 
-> **Terminology:** In this case study, *category* is a working name for the space where the solver verifies reachability. It shares inspiration with category theory but does not follow the strict mathematical definition. The formal name is not yet fixed.
-
-Storage evidence and semantic facts are what the solver verifies: the type chain within the category. The category boundary (axiom) is a trusted premise; the solver accepts it without verification.
+Storage evidence and semantic facts are what the solver verifies within the category: the type chain inside the category. The outside of the category (axiom) is trusted but not verified.
 
 | Scope | Solver involvement | Example |
 |---|---|---|

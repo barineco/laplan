@@ -5,9 +5,9 @@
 ```
 type      type existence
 lexicon   Lex₀ (lex)        type structure (input/output definitions)
-rule      Lex₁ (solve)      morphisms between types (solver search target)
+morph     Lex₁ (solve)      morphisms between types (solver search target)
 ─── solver boundary ───
-constrain Lex₂              structural constraints (solver decision material)
+func      Lex₂ (constrain)  structural constraints (solver decision material)
 pkg       Lex₃ (package)    package management
 ```
 
@@ -38,12 +38,12 @@ Transitions in the Petri net. **Searched by the solver.**
 | Notation | Short form | Description |
 |---|---|---|
 | `rule` | `rule` | Requirements and outputs |
-| `rule.const` | `const` | Constant binding. Initial marking (`() → T`). Not reassignable |
-| `rule.assign` | `assign` | Variable binding. Token flow (`() → T`). Reassignable |
+| `morph.const` | `const` | Constant binding. Initial marking (`() → T`). Not reassignable |
+| `morph.assign` | `assign` | Variable binding. Token flow (`() → T`). Reassignable |
 | `rule.inverse` | `inverse` | Inverse morphism (pruning) |
 | `rule.derives` | `derives` | Derivation from an existing morphism |
-| `rule.chain` | `handler`/`chain` | Manual path specification |
-| `rule.refinement` | `refinement` | Adding constraints to an existing lexicon |
+| `morph.chain` | `handler`/`chain` | Manual path specification |
+| `morph.refinement` | `refinement` | Adding constraints to an existing lexicon |
 
 ## constrain (Lex₂): Structural Constraints
 
@@ -51,11 +51,11 @@ Places structural constraints on top of Lex₁ morphisms. **Not searched by the 
 
 | Notation | Short form | Description |
 |---|---|---|
-| `constrain.mapping` | `mapping` | Language conversion rules |
-| `constrain.family` | `family` | Type family (a closed set of types sharing isomorphic operations; the source of vectorize/product derivation) |
-| `constrain.law` | `law` | Algebraic laws |
-| `constrain.dual` | `dual` | Symmetry of bidirectional queries |
-| `constrain.invariant` | `invariant` | Invariants (count consistency, etc.) |
+| `func` | `mapping` | Language conversion rules |
+| `func.family` | `family` | Type family (a closed set of types sharing isomorphic operations; the source of vectorize/product derivation) |
+| `func.law` | `law` | Algebraic laws |
+| `func.dual` | `dual` | Symmetry of bidirectional queries |
+| `func.invariant` | `invariant` | Invariants (count consistency, etc.) |
 
 ## package (Lex₃): Package Management
 
@@ -90,7 +90,7 @@ meta "view.graph.car.parse_v1" {
 }
 ```
 
-Files are placed under `view/graph/<nsid>.lex`, separated from the body `.lex` at the directory level. Parsing is handled by `parse_meta_kdl()` in `compiler/ir`. See [reference/axiom-view.md](axiom/view.md) for type declarations.
+Files are placed under `view/graph/<nsid>.lex`, separated from the body `.lex` at the directory level. Parsing is handled by `parse_meta_kdl()` in `compiler/ir`. See [reference/axiom-view.md](axiom-view.md) for type declarations.
 
 `cratis` serves as both a standalone package and a workspace. Determined by the presence of `members`:
 
@@ -134,7 +134,7 @@ axiom/
   crypto/         Lex₀ + Lex₁
   category/       Lex₂ + Lex₃ (`cratis.lex` is the package root, compose/dual/lift are Lex₂)
   algebra/        Lex₀ + Lex₁ + Lex₂ (operations + family)
-  resolver.lex    Lex₁ (FnExpr KDL. 9 runtime resolver functions)
+  resolver.lex    Lex₁ (FnExpr KDL. 7 runtime resolver functions)
   target/         Lex₂ + Lex₃ (`cratis.lex` is the workspace root; `lang/`, `binary/`, `bind/` each have their own `cratis.lex`)
     lang/           mapping.lex (type mapping table) + morph.lex + type.lex
     binary/
@@ -143,7 +143,7 @@ axiom/
     graph/          Lex₀ (NodeBox / EdgeRoute / ViewportTransform)
 ```
 
-`resolver.lex` is a .lex variant that directly describes FnExpr in KDL. While ordinary .lex handles declarations such as lexicon / rule, `resolver.lex` describes Lex₁ function definitions using `fn` nodes. `parse_resolver_lex()` converts KDL → `Vec<FnDef>`, and resolver code for all languages is generated via lowering. See the "resolver.lex" section in [architecture/ir.md](../architecture/ir.md) for details.
+`resolver.lex` is a .lex variant that directly describes FnExpr in KDL. While ordinary .lex handles declarations such as lexicon / rule / mapping, `resolver.lex` describes Lex₁ function definitions using `fn` nodes. `parse_resolver_lex()` converts KDL → `Vec<FnDef>`, and resolver code for all languages is generated via lowering. See the "resolver.lex" section in [architecture/ir.md](../architecture/ir.md) for details.
 
 Each `axiom/*/cratis.lex` is a Lex₃ package root, and `axiom/target/cratis.lex` is the workspace root that bundles `lang`, `binary`, and `bind`.
 The `provides` here is package metadata and is independent of endpoint loading.

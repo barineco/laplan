@@ -72,7 +72,7 @@ laplan 本体の `bindings {}` / `package {}` / `runtime-base {}` は **汎用�
 
 - `k256` / `p256` / `sha2` / `argon2` など **汎用 crypto 実装**
 - `serde` / `serde_json` / `neco-json` / `neco-cbor` など **汎用シリアライゼーション**
-- `reqwest` / `hyper` / `ureq` など **汎用 HTTP client** (xrpc axiom の Rust 側接続先)
+- `reqwest` / `hyper` / `ureq` など **汎用 HTTP client** (xrpc axiom の Rust 側接続先として、WI-2 以降で追加予定)
 
 禁止される接続先の例:
 

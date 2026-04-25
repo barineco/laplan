@@ -146,7 +146,7 @@ workspace/
   view/graph/car.parse_v1.lex    座標・viewport (meta)
 ```
 
-`@laplan/ui-store` の `saveMetaView()` が KDL を生成し、`loadMetaView()` が復元します。型宣言は `axiom/view/` に置かれています。詳細は [reference/axiom/view.md](../reference/axiom/view.md) を参照してください。
+`@laplan/ui-store` の `saveMetaView()` が KDL を生成し、`loadMetaView()` が復元します。型宣言は `axiom/view/` に置かれています。詳細は [reference/axiom-view.md](../reference/axiom-view.md) を参照してください。
 
 ## 機能一覧
 
@@ -180,4 +180,4 @@ code --install-extension extension/laplan-lex-0.2.0.vsix
 
 - [architecture/solver.md](../architecture/solver.md): diagnose / lint の中身
 - [architecture/synthesis.md](../architecture/synthesis.md): WASM binding の生成
-- [reference/axiom/view.md](../reference/axiom/view.md): `axiom/view/` の型宣言
+- [reference/axiom-view.md](../reference/axiom-view.md): `axiom/view/` の型宣言

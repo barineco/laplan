@@ -5,9 +5,9 @@
 ```
 type      型の存在
 lexicon   Lex₀ (lex)        型の構造 (入出力の定義)
-rule      Lex₁ (solve)      型間の射 (solver 探索対象)
+morph     Lex₁ (solve)      型間の射 (solver 探索対象)
 ─── solver boundary ───
-constrain Lex₂              構造制約 (solver の判断材料)
+func      Lex₂ (constrain)  構造制約 (solver の判断材料)
 pkg       Lex₃ (package)    パッケージ管理
 ```
 
@@ -38,12 +38,12 @@ Petri net の transition。**solver が探索する。**
 | 記法 | 省略形 | 説明 |
 |---|---|---|
 | `rule` | `rule` | 要件と成果物 |
-| `rule.const` | `const` | 定数束縛。初期マーキング (`() → T`)。再代入不可 |
-| `rule.assign` | `assign` | 変数束縛。token flow (`() → T`)。再代入可 |
+| `morph.const` | `const` | 定数束縛。初期マーキング (`() → T`)。再代入不可 |
+| `morph.assign` | `assign` | 変数束縛。token flow (`() → T`)。再代入可 |
 | `rule.inverse` | `inverse` | 逆射 (枝刈り) |
 | `rule.derives` | `derives` | 既存射からの導出 |
-| `rule.chain` | `handler`/`chain` | 手動経路指定 |
-| `rule.refinement` | `refinement` | 既存 lexicon への制約追加 |
+| `morph.chain` | `handler`/`chain` | 手動経路指定 |
+| `morph.refinement` | `refinement` | 既存 lexicon への制約追加 |
 
 ## constrain (Lex₂): 構造制約
 
@@ -51,11 +51,11 @@ Lex₁ の射を前提として構造的制約を置く。**solver は探索し�
 
 | 記法 | 省略形 | 説明 |
 |---|---|---|
-| `constrain.mapping` | `mapping` | 言語変換規則 |
-| `constrain.family` | `family` | 型族 (同型演算を共有する閉じた型の集合。vectorize/product の導出元) |
-| `constrain.law` | `law` | 代数的法則 |
-| `constrain.dual` | `dual` | 双方向クエリの対称性 |
-| `constrain.invariant` | `invariant` | 不変量 (count 整合性等) |
+| `func` | `mapping` | 言語変換規則 |
+| `func.family` | `family` | 型族 (同型演算を共有する閉じた型の集合。vectorize/product の導出元) |
+| `func.law` | `law` | 代数的法則 |
+| `func.dual` | `dual` | 双方向クエリの対称性 |
+| `func.invariant` | `invariant` | 不変量 (count 整合性等) |
 
 ## package (Lex₃): パッケージ管理
 
@@ -90,7 +90,7 @@ meta "view.graph.car.parse_v1" {
 }
 ```
 
-ファイルは `view/graph/<nsid 相当>.lex` に配置し、本体 `.lex` とディレクトリレベルで分離する。パースは `compiler/ir` の `parse_meta_kdl()` が担当する。詳細は [reference/axiom-view.md](axiom/view.md) を参照してください。
+ファイルは `view/graph/<nsid 相当>.lex` に配置し、本体 `.lex` とディレクトリレベルで分離する。パースは `compiler/ir` の `parse_meta_kdl()` が担当する。詳細は [reference/axiom-view.md](axiom-view.md) を参照してください。
 
 `cratis` は単体パッケージとワークスペースを兼ねる。`members` の有無で判定:
 
@@ -143,7 +143,7 @@ axiom/
     graph/          Lex₀ (NodeBox / EdgeRoute / ViewportTransform)
 ```
 
-`resolver.lex` は FnExpr を KDL で直接記述する .lex バリアントです。通常の .lex が lexicon / rule 等の宣言を扱うのに対し、resolver.lex は `fn` ノードで Lex₁ の関数定義を記述します。`parse_resolver_lex()` が KDL → `Vec<FnDef>` に変換し、lowering 経由で全言語に resolver コードを生成します。詳細は [architecture/ir.md](../architecture/ir.md) の「resolver.lex」節を参照。
+`resolver.lex` は FnExpr を KDL で直接記述する .lex バリアントです。通常の .lex が lexicon / rule / mapping 等の宣言を扱うのに対し、resolver.lex は `fn` ノードで Lex₁ の関数定義を記述します。`parse_resolver_lex()` が KDL → `Vec<FnDef>` に変換し、lowering 経由で全言語に resolver コードを生成します。詳細は [architecture/ir.md](../architecture/ir.md) の「resolver.lex」節を参照。
 
 各 `axiom/*/cratis.lex` は Lex₃ の package root で、`axiom/target/cratis.lex` は `lang` `binary` `bind` を束ねる workspace root になります。
 ここでの `provides` は package metadata です。endpoint の読み込みとは独立しています。
@@ -156,3 +156,4 @@ axiom/
 - [../architecture/ir.md](../architecture/ir.md): Lex₁ (FnExpr) / Lex₂ (Stmt, Expr) の型定義、forward (lowering) と inverse (pattern match + reverse_lower) のパイプライン全景
 - [../architecture/ir-walkthrough.md](../architecture/ir-walkthrough.md): `checkNeeds` / `classifyCandidate` で Lex₀ から各言語 emit までを通しで追う
 - [mapping-template.md](mapping-template.md): mapping.lex の `{name}` placeholder と `«directive»` directive 仕様
+- [semantic-fact-design.md](semantic-fact-design.md): semantic fact の命名と rule 構造のコンベンション (混線回避、shortest route 確定)
